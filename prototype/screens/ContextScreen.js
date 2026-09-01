@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import ScreenHeader from '../components/ScreenHeader';
-import { WatchButton } from '../components/WatchButton';
+import WatchButton from '../components/WatchButton';
 import { colors } from '../theme';
 
 export default function ContextScreen({ poorNetwork, crowdLevel, onToggleNetwork, onBeat, onMoveFriend, onResetFriend, onCrowdAlert, onCycleCrowd, onIncomingSignal, onOpenHelp, onBack, onHome }) {

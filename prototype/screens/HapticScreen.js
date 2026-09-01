@@ -4,7 +4,7 @@ import HapticVisualizer from '../components/HapticVisualizer';
 import LightCue from '../components/LightCue';
 import ScreenHeader from '../components/ScreenHeader';
 import { HapticStatus } from '../components/StatusIndicator';
-import { SegmentedControl, WatchButton } from '../components/WatchButton';
+import WatchButton, { SegmentedControl } from '../components/WatchButton';
 import { colors } from '../theme';
 
 export default function HapticScreen({ mode, intensity, paused, lights = 'Full', lightCue, hapticNotice, onMode, onIntensity, onPause, onHaptic, onBack, onHome }) {

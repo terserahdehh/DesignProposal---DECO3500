@@ -3,7 +3,7 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import BeatVisualizer from '../components/BeatVisualizer';
 import LightCue from '../components/LightCue';
 import { HapticStatus } from '../components/StatusIndicator';
-import { IconButton, WatchButton } from '../components/WatchButton';
+import WatchButton, { IconButton } from '../components/WatchButton';
 import { colors } from '../theme';
 
 export default function LiveModeScreen({ hapticsEnabled, hapticStrength, lights = 'Full', lightCue, hapticNotice, onToggleHaptics, onHaptic, onBack, onHome }) {

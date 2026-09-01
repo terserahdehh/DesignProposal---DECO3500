@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import FriendCard from '../components/FriendCard';
 import LightCue from '../components/LightCue';
 import ScreenHeader from '../components/ScreenHeader';
-import { WatchButton } from '../components/WatchButton';
+import WatchButton from '../components/WatchButton';
 import { colors } from '../theme';
 
 export default function FriendsScreen({ friends, locationSharing, lights = 'Full', poorNetwork, lightCue, onSelectFriend, onSignals, onBack, onHome }) {

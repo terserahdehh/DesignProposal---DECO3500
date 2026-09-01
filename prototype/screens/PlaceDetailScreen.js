@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import DirectionArrow from '../components/DirectionArrow';
 import LightCue from '../components/LightCue';
 import ScreenHeader, { Toast } from '../components/ScreenHeader';
-import { WatchButton } from '../components/WatchButton';
+import WatchButton from '../components/WatchButton';
 import { colors } from '../theme';
 
 export default function PlaceDetailScreen({ place, crowdLevel, navigation, heading, lights = 'Full', lightCue, onGuide, onWalk, onTellGroup, onBack, onHome }) {

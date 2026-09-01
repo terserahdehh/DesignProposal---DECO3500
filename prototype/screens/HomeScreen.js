@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import BeatVisualizer from '../components/BeatVisualizer';
 import StatusIndicator, { HapticStatus, MiniBanner } from '../components/StatusIndicator';
-import { IconButton, WatchButton } from '../components/WatchButton';
+import WatchButton, { IconButton } from '../components/WatchButton';
 import { colors } from '../theme';
 
 function ContextChip({ icon, label, color = colors.secondary }) {

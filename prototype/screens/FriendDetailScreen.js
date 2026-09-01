@@ -4,7 +4,7 @@ import DirectionArrow from '../components/DirectionArrow';
 import LightCue from '../components/LightCue';
 import ScreenHeader, { Toast } from '../components/ScreenHeader';
 import { HapticStatus } from '../components/StatusIndicator';
-import { WatchButton } from '../components/WatchButton';
+import WatchButton from '../components/WatchButton';
 import { colors } from '../theme';
 
 function distanceLabel(distance, locationSharing) {

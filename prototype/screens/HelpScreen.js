@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import LightCue from '../components/LightCue';
 import ScreenHeader from '../components/ScreenHeader';
-import { WatchButton } from '../components/WatchButton';
+import WatchButton from '../components/WatchButton';
 import { colors } from '../theme';
 
 export default function HelpScreen({ lights = 'Full', lightCue, onRequestHelp, onBack, onHome }) {

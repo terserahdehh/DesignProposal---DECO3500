@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import ScreenHeader from '../components/ScreenHeader';
-import { SegmentedControl, WatchButton } from '../components/WatchButton';
+import WatchButton, { SegmentedControl } from '../components/WatchButton';
 import { colors } from '../theme';
 
 function SettingRow({ title, detail, children }) {
