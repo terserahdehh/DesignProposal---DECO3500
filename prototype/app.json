@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "PulseBand Prototype",
+    "slug": "pulseband-prototype",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android", "web"]
+  }
+}

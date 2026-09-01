@@ -1,37 +1,39 @@
-# PULSEBAND
+# PulseBand
 
-### A wearable interface for connected live music.
+PulseBand is a context-aware smart concert wristband prototype for **DECO3500 — Social & Mobile Computing**. The experience is designed to happen inside a wearable display, helping concertgoers stay connected to music, friends, accessibility features, and venue support without repeatedly checking a phone.
 
-PulseBand transforms the concert wristband into a real-time sensory network. Light, haptic rhythm, and proximity cues help audiences connect with the performance and each other — without relying on a phone or constant internet access.
+The current prototype uses the supplied `watch.png` as the literal physical watch frame. The black display area is replaced with an original PulseBand interface containing the interactive system.
 
-> **Creative Connections** · DECO3500 — Social & Mobile Computing
+## Run the prototype
 
-## Core System
+```bash
+cd prototype
+npm install
+npx expo start --web
+```
 
-| Signal | Experience |
-| --- | --- |
-| **Light** | Music-synchronised colour and glow make the crowd part of the performance. |
-| **Haptics** | Vibrotactile rhythm lets users physically feel the music. |
-| **Proximity** | Nearby wireless signals help separated friends reconnect. |
-| **Group colour** | Shared colours make friend groups easier to recognise in a crowd. |
+The browser shows only the watch. Start at **Welcome, Nayaka**, enter Pulse Festival, then explore live mode, haptic music, friends, quick signals, lyrics, venue cues, quiet space, accessibility settings, help and Live Context. The Live Context screen keeps the beat, network, crowd, proximity and incoming-signal simulations inside the wristband interface.
 
-## Design Direction
+## Prototype scope
 
-- **Screen-free:** simple interactions keep attention on the live event.
-- **Offline-first:** essential features continue when mobile connectivity is limited.
-- **Inclusive:** haptic feedback creates an alternative sensory channel for Deaf and hard-of-hearing concertgoers.
-- **Social:** the wristband strengthens connection between people, music, and place.
+Real prototype functionality includes interface navigation, state changes, accessibility settings, animations, lyric highlighting, friend-distance and venue-route simulations, compass feedback, light cues, safe browser vibration fallback, group signal delivery states, incoming signals, group responses, and the hold-to-confirm support flow.
 
-## Initial Concept
+Simulated functionality includes Bluetooth proximity, physical haptic motors, live concert synchronisation, crowd sensing, real friend locations, venue routing, and emergency communication.
 
-The first concept was developed in Miro to explore wearable technology, social connection, and accessibility at live music events.
+## Project files
 
-![Initial Idea](static/Initial%20Idea.png)
+The complete Expo project is in [`prototype/`](prototype/):
 
-## Research Focus
+```text
+prototype/
+  App.js
+  components/
+  screens/
+  data/
+  static/
+    watch.png
+    Initial Idea.png
+  package.json
+```
 
-Wearable and haptic interaction · vibrotactile music experiences · accessible concert design · audience participation · Bluetooth proximity · social connection in crowded spaces.
-
-## Status
-
-Initial concept exploration and research.
+The initial Miro concept is available at [`prototype/static/Initial Idea.png`](prototype/static/Initial%20Idea.png).

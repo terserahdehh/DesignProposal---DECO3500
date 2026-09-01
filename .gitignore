@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist/
+prototype/node_modules/
+prototype/.expo/
+prototype/dist/
+.DS_Store
+npm-debug.log*
