@@ -6,12 +6,12 @@ import ScreenHeader from '../components/ScreenHeader';
 import WatchButton from '../components/WatchButton';
 import { colors } from '../theme';
 
-export default function FriendsScreen({ friends, locationSharing, lights = 'Full', poorNetwork, lightCue, onSelectFriend, onSignals, onBack, onHome }) {
+export default function FriendsScreen({ friends, focusedFriendId, locationSharing, lights = 'Full', connectionState = 'Connected', poorNetwork, lightCue, onSelectFriend, onSignals, onBack, onHome }) {
   return (
     <View style={styles.screen}>
       <ScreenHeader title="My Group" subtitle={`${friends.length + 1} WRISTBANDS CONNECTED`} onBack={onBack} onHome={onHome} />
-      {poorNetwork ? <Text style={styles.networkNote}>NETWORK WEAK · nearby group link keeps local cues available</Text> : null}
-      <View style={styles.list}>{friends.map((friend) => <FriendCard key={friend.id} friend={friend} locationSharing={locationSharing} onPress={() => onSelectFriend(friend)} />)}</View>
+      {connectionState === 'Disconnected' ? <Text style={styles.networkNote}>BLUETOOTH OFFLINE · cached friend traces remain visible</Text> : poorNetwork ? <Text style={styles.networkNote}>BLUETOOTH WEAK · nearby group link keeps local cues available</Text> : null}
+      <View style={styles.list}>{friends.map((friend) => <FriendCard key={friend.id} friend={friend} focused={friend.id === focusedFriendId} locationSharing={locationSharing} onPress={() => onSelectFriend(friend)} />)}</View>
       <LightCue compact color={lightCue.color} mode={lightCue.mode} lights={lights} title={lightCue.title} detail={lightCue.detail} />
       <View style={styles.groupStatus}><View style={styles.avatarStack}><View style={[styles.stack, { backgroundColor: colors.cyan }]} /><View style={[styles.stack, { backgroundColor: colors.violet }]} /><View style={[styles.stack, { backgroundColor: colors.orange }]} /></View><View style={styles.statusCopy}><Text style={styles.statusTitle}>Group channel open</Text><Text style={styles.statusDetail}>Sharing: {locationSharing} · friends only</Text></View></View>
       <WatchButton label="Send Group Signal" icon="⌁" variant="quiet" onPress={onSignals} />

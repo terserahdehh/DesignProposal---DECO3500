@@ -5,13 +5,13 @@ import WatchButton from '../components/WatchButton';
 import { places } from '../data/mockData';
 import { colors } from '../theme';
 
-export default function NavigateScreen({ crowdLevel = 'High', onSelect, onBack, onHome }) {
+export default function NavigateScreen({ crowdLevel = 'High', focusedPlaceId, onSelect, onBack, onHome }) {
   return (
     <View style={styles.screen}>
       <ScreenHeader title="Where to?" subtitle="LIGHTWEIGHT VENUE CUES" onBack={onBack} onHome={onHome} />
       <Text style={styles.intro}>Choose a destination. Follow the signal, not a map.</Text>
       {crowdLevel === 'High' ? <Text style={styles.crowdNote}>⚠ HIGH CROWD NEAR MAIN STAGE · alternative cues available</Text> : null}
-      <View style={styles.grid}>{places.map((place) => <WatchButton key={place.id} label={`${place.title}\n${place.distance} m`} icon={place.icon} compact fill variant="default" onPress={() => onSelect(place)} />)}</View>
+      <View style={styles.grid}>{places.map((place) => <WatchButton key={place.id} label={`${place.title}\n${place.distance} m`} icon={place.icon} compact fill variant={place.id === focusedPlaceId ? 'accent' : 'default'} onPress={() => onSelect(place)} />)}</View>
       <Text style={styles.note}>Approximate venue navigation · current crowd: {crowdLevel.toUpperCase()}</Text>
     </View>
   );

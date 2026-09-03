@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import LightCue from '../components/LightCue';
 import ScreenHeader, { Toast } from '../components/ScreenHeader';
 import { HapticStatus } from '../components/StatusIndicator';
@@ -7,29 +7,51 @@ import WatchButton from '../components/WatchButton';
 import { signalMeta, signalOptions } from '../data/mockData';
 import { colors } from '../theme';
 
-export default function SignalScreen({ friends = [], groupSignal, lightCue, lights = 'Full', hapticNotice, onSend, onResponse, onBack, onHome }) {
+export default function SignalScreen({ friends = [], focusedSignal, physicalSignal, groupSignal, lightCue, lights = 'Full', hapticNotice, onSend, onResponse, onBack, onHome }) {
   const [sent, setSent] = useState('');
   const [response, setResponse] = useState('');
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (groupSignal) {
       setSent(groupSignal.signal);
       setResponse(groupSignal.response || '');
+      setConfirming(false);
     }
   }, [groupSignal]);
 
-  const choose = (signal) => { setSent(signal); setResponse(''); onSend(signal); };
+  const choose = (signal) => {
+    if (signal === 'SOS / Emergency' && confirming) { confirmSos(); return; }
+    setSent(signal);
+    setResponse('');
+    if (signal === 'SOS / Emergency') { setConfirming(true); return; }
+    setConfirming(false);
+    onSend(signal);
+  };
+  const confirmSos = () => { setConfirming(false); onSend('SOS / Emergency'); };
+  const cancelSos = () => { setSent(''); setResponse(''); setConfirming(false); };
+  useEffect(() => {
+    if (physicalSignal?.signal) choose(physicalSignal.signal);
+  }, [physicalSignal]);
   const respond = (value) => { setResponse(value); onResponse(value); };
   const meta = sent ? signalMeta[sent] : null;
   const recipientNames = groupSignal?.signal === sent ? groupSignal.recipients : friends.map((friend) => friend.name);
   const recipients = friends.filter((friend) => recipientNames.includes(friend.name));
 
   return (
-    <View style={styles.screen}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <ScreenHeader title="Quick Signal" subtitle="ONE-TAP GROUP COMMUNICATION" onBack={onBack} onHome={onHome} />
       <Text style={styles.intro}>Say what you need with one tap. No typing in the crowd.</Text>
-      <View style={styles.options}>{signalOptions.map((signal) => <WatchButton key={signal} label={signal} icon={signalMeta[signal]?.icon || '⌁'} compact variant={sent === signal ? 'accent' : signal === 'Need Help' ? 'danger' : 'default'} onPress={() => choose(signal)} />)}</View>
-      {sent ? <>
+      <View style={styles.options}>{signalOptions.map((signal) => {
+        const urgent = signal === 'Need Help' || signal === 'SOS / Emergency';
+        const selected = sent === signal || focusedSignal === signal;
+        return <View key={signal} style={styles.optionCell}><WatchButton label={signal} icon={signalMeta[signal]?.icon || '⌁'} compact fill variant={selected ? 'accent' : urgent ? 'danger' : 'default'} onPress={() => choose(signal)} /></View>;
+      })}</View>
+      {confirming ? <>
+        <Toast message="SOS READY · CONFIRM TO SEND TO ALL BANDS" tone="pink" />
+        <View style={styles.confirmPanel}><Text style={styles.confirmTitle}>SEND EMERGENCY SIGNAL?</Text><Text style={styles.confirmCopy}>This sends a red urgent cue to every connected PulseBand in your group.</Text><View style={styles.responseButtons}><WatchButton label="Cancel" compact fill onPress={cancelSos} /><WatchButton label="Confirm SOS" compact fill variant="danger" onPress={confirmSos} /></View></View>
+        <LightCue color={signalMeta['SOS / Emergency'].color} mode="help" lights={lights} title="SOS STANDBY" detail="Waiting for confirmation" compact />
+      </> : sent ? <>
         <Toast message={`${sent.toUpperCase()} SENT · ${recipients.length} FRIENDS RECEIVED`} tone="aqua" />
         <View style={styles.recipientPanel}>
           <Text style={styles.panelTitle}>GROUP DELIVERY</Text>
@@ -41,15 +63,20 @@ export default function SignalScreen({ friends = [], groupSignal, lightCue, ligh
       </> : <View style={styles.empty}><Text style={styles.emptyIcon}>⌁</Text><Text style={styles.emptyTitle}>GROUP CHANNEL READY</Text><Text style={styles.emptyCopy}>Your next signal will appear here with delivery confirmation.</Text></View>}
       {meta ? <Text style={[styles.footerText, { color: meta.color }]}>Light cue: {sent} · local wristband feedback active</Text> : null}
       <Text style={styles.footer}>Signals are simulated locally for this prototype.</Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, gap: 5 },
+  screen: { flex: 1 },
+  content: { gap: 5, paddingBottom: 4 },
   intro: { color: colors.secondary, fontSize: 9, lineHeight: 13, marginVertical: 3 },
-  options: { gap: 5 },
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  optionCell: { width: '48%', minHeight: 40 },
   recipientPanel: { padding: 7, borderRadius: 13, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, gap: 4 },
+  confirmPanel: { padding: 9, borderRadius: 13, backgroundColor: `${colors.danger}18`, borderWidth: 1, borderColor: `${colors.danger}88`, gap: 6 },
+  confirmTitle: { color: colors.text, fontSize: 10, fontWeight: '900', letterSpacing: 0.45 },
+  confirmCopy: { color: colors.secondary, fontSize: 8, lineHeight: 12 },
   panelTitle: { color: colors.secondary, fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginBottom: 2 },
   recipient: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   recipientDot: { width: 7, height: 7, borderRadius: 4 },

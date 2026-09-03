@@ -11,10 +11,10 @@ function distanceLabel(friend, locationSharing) {
   return `${friend.distance} m away`;
 }
 
-export default function FriendCard({ friend, locationSharing = 'Precise', onPress }) {
-  const statusColor = friend.connection === 'Strong' ? colors.green : friend.connection === 'Good' ? colors.cyan : colors.yellow;
+export default function FriendCard({ friend, locationSharing = 'Precise', focused = false, onPress }) {
+  const statusColor = friend.connection === 'Strong' ? colors.green : friend.connection === 'Good' ? colors.cyan : friend.connection === 'Disconnected' ? colors.danger : colors.yellow;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Find ${friend.name}`} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Find ${friend.name}`} accessibilityState={{ selected: focused }} onPress={onPress} style={({ pressed }) => [styles.card, focused && styles.focused, pressed && styles.pressed]}>
       <View style={[styles.avatar, { borderColor: friend.color, backgroundColor: `${friend.color}20` }]}><Text style={[styles.avatarText, { color: friend.color }]}>{friend.name[0]}</Text></View>
       <View style={styles.copy}>
         <Text style={styles.name}>{friend.name}</Text>
@@ -28,6 +28,7 @@ export default function FriendCard({ friend, locationSharing = 'Precise', onPres
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', minHeight: 62, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 16, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, gap: 8 },
+  focused: { borderColor: colors.aqua, shadowColor: colors.aqua, shadowOpacity: 0.45, shadowRadius: 9, shadowOffset: { width: 0, height: 0 } },
   pressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
   avatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontWeight: '900' },

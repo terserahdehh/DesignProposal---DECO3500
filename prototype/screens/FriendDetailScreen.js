@@ -22,7 +22,7 @@ export default function FriendDetailScreen({ friend, distance, locationSharing, 
   return (
     <View style={styles.screen}>
       <ScreenHeader title={`Finding ${friend.name}`} subtitle="FRIEND AWARENESS CHANNEL" onBack={onBack} onHome={onHome} />
-      <View style={styles.friendHeading}><View style={[styles.friendDot, { backgroundColor: friend.color }]} /><Text style={styles.friendName}>{friend.name.toUpperCase()}</Text><Text style={[styles.connection, { color: friend.connection === 'Strong' ? colors.green : friend.connection === 'Good' ? colors.cyan : colors.yellow }]}>{friend.connection.toUpperCase()}</Text></View>
+      <View style={styles.friendHeading}><View style={[styles.friendDot, { backgroundColor: friend.color }]} /><Text style={styles.friendName}>{friend.name.toUpperCase()}</Text><Text style={[styles.connection, { color: friend.connection === 'Strong' ? colors.green : friend.connection === 'Good' ? colors.cyan : friend.connection === 'Disconnected' ? colors.danger : colors.yellow }]}>{friend.connection.toUpperCase()}</Text></View>
       <DirectionArrow close={close} hidden={locationSharing === 'Off'} heading={friend.heading} direction={friend.direction} target={friend.name.toUpperCase()} />
       <View style={styles.distance}><Text style={[styles.number, locationSharing === 'Off' && styles.hiddenNumber]}>{distanceLabel(distance, locationSharing)}</Text>{locationSharing === 'Precise' ? <Text style={styles.unit}>away</Text> : null}</View>
       <Text style={[styles.status, close && styles.closeStatus]}>{friend.status} <Text style={styles.statusDivider}>·</Text> {locationSharing === 'Off' ? 'location sharing off' : close ? 'Signal Strong' : 'Location sharing active'}</Text>

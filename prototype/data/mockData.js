@@ -4,14 +4,14 @@ export const eventData = {
   artist: 'LUNA',
   song: 'Midnight',
   crowdLevel: 'High',
-  network: 'Good',
+  network: 'Bluetooth Good',
   battery: 82,
 };
 
 export const initialFriends = [
-  { id: 1, name: 'Syifa', distance: 12, location: 'East Entry', status: 'Safe', color: '#00C2FF', heading: 35, direction: 'NORTH-EAST' },
-  { id: 2, name: 'Serafina', distance: 24, location: 'Main Stage', status: 'At Main Stage', color: '#9B7BFF', heading: 70, direction: 'NORTH-EAST' },
-  { id: 3, name: 'Amy', distance: 92, location: 'Food Area', status: 'Safe', color: '#FF9F43', heading: 125, direction: 'SOUTH-EAST' },
+  { id: 1, name: 'Syifa', distance: 12, location: 'East Entry', status: 'Safe', color: '#EF4444', heading: 35, direction: 'NORTH-EAST' },
+  { id: 2, name: 'Serafina', distance: 24, location: 'Main Stage', status: 'At Main Stage', color: '#A855F7', heading: 70, direction: 'NORTH-EAST' },
+  { id: 3, name: 'Amy', distance: 92, location: 'Food Area', status: 'Safe', color: '#FACC15', heading: 125, direction: 'SOUTH-EAST' },
 ];
 
 export const lyricLines = [
@@ -27,14 +27,20 @@ export const signalOptions = [
   'Need Help',
   'Taking a Break',
   'Going to Another Stage',
+  'Going Home',
+  'Toilet',
+  'SOS / Emergency',
 ];
 
 export const signalMeta = {
-  "I'm Safe": { color: '#39E58C', lightMode: 'safe', haptic: 'medium', icon: '✓' },
-  'Meet Me': { color: '#9B7BFF', lightMode: 'meet', haptic: 'medium', icon: '✦' },
-  'Need Help': { color: '#FF4D6D', lightMode: 'help', haptic: 'strong', icon: '!' },
-  'Taking a Break': { color: '#00C2FF', lightMode: 'break', haptic: 'soft', icon: '◌' },
-  'Going to Another Stage': { color: '#FF9F43', lightMode: 'signal', haptic: 'medium', icon: '↗' },
+  "I'm Safe": { color: '#22C55E', lightMode: 'safe', haptic: 'medium', icon: '✓' },
+  'Meet Me': { color: '#A855F7', lightMode: 'meet', haptic: 'medium', icon: '✦' },
+  'Need Help': { color: '#EF4444', lightMode: 'help', haptic: 'strong', icon: '!' },
+  'Taking a Break': { color: '#22D3EE', lightMode: 'break', haptic: 'soft', icon: '◌' },
+  'Going to Another Stage': { color: '#FACC15', lightMode: 'signal', haptic: 'medium', icon: '↗' },
+  'Going Home': { color: '#FACC15', lightMode: 'signal', haptic: 'medium', icon: '⌂' },
+  Toilet: { color: '#22D3EE', lightMode: 'signal', haptic: 'medium', icon: '⌁' },
+  'SOS / Emergency': { color: '#EF4444', lightMode: 'help', haptic: 'strong', icon: '!' },
 };
 
 export const incomingSignalOptions = [
@@ -44,10 +50,10 @@ export const incomingSignalOptions = [
 ];
 
 export const places = [
-  { id: 'quiet', title: 'Quiet Space', detail: 'Low stimulation', distance: 42, direction: 'NORTH-EAST', heading: 60, icon: '◌', accent: '#20E3D2' },
-  { id: 'accessible', title: 'Accessible Viewing', detail: 'Clear sightline', distance: 80, direction: 'NORTH', heading: 0, icon: '◎', accent: '#9B7BFF' },
-  { id: 'toilets', title: 'Toilets', detail: 'North entrance', distance: 65, direction: 'NORTH-WEST', heading: 320, icon: '⌁', accent: '#FF9F43' },
-  { id: 'first-aid', title: 'First Aid', detail: 'Support point', distance: 150, direction: 'WEST', heading: 270, icon: '+', accent: '#FF5CA8' },
-  { id: 'water', title: 'Water', detail: 'Refill station', distance: 40, direction: 'EAST', heading: 90, icon: '≈', accent: '#00C2FF' },
-  { id: 'main-stage', title: 'Main Stage', detail: 'LUNA live now', distance: 0, direction: 'ARRIVED', heading: 0, icon: '✦', accent: '#20E3D2' },
+  { id: 'quiet', title: 'Quiet Space', detail: 'Low stimulation', distance: 42, direction: 'NORTH-EAST', heading: 60, icon: '◌', accent: '#22D3EE' },
+  { id: 'accessible', title: 'Accessible Viewing', detail: 'Clear sightline', distance: 80, direction: 'NORTH', heading: 0, icon: '◎', accent: '#A855F7' },
+  { id: 'toilets', title: 'Toilets', detail: 'North entrance', distance: 65, direction: 'NORTH-WEST', heading: 320, icon: '⌁', accent: '#FACC15' },
+  { id: 'first-aid', title: 'First Aid', detail: 'Support point', distance: 150, direction: 'WEST', heading: 270, icon: '+', accent: '#EF4444' },
+  { id: 'water', title: 'Water', detail: 'Refill station', distance: 40, direction: 'EAST', heading: 90, icon: '≈', accent: '#22D3EE' },
+  { id: 'main-stage', title: 'Main Stage', detail: 'LUNA live now', distance: 0, direction: 'ARRIVED', heading: 0, icon: '✦', accent: '#22D3EE' },
 ];

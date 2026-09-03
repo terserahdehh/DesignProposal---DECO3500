@@ -2,7 +2,7 @@
 
 PulseBand is a context-aware smart concert wristband prototype for **DECO3500 — Social & Mobile Computing**. The experience is designed to happen inside a wearable display, helping concertgoers stay connected to music, friends, accessibility features, and venue support without repeatedly checking a phone.
 
-The current prototype uses the supplied `watch.png` as the literal physical watch frame. The black display area is replaced with an original PulseBand interface containing the interactive system.
+The current prototype uses a code-built circular PulseBand body with a small rectangular display and three physical-style controls: Back, Next and OK. Four colour indicators around the body represent group awareness. The supplied `watch.png` is retained as an earlier concept asset but is not used by the application.
 
 ## Run the prototype
 
@@ -12,7 +12,7 @@ npm install
 npx expo start --web
 ```
 
-The browser shows only the watch. Start at **Welcome, Nayaka**, enter Pulse Festival, then explore live mode, haptic music, friends, quick signals, lyrics, venue cues, quiet space, accessibility settings, help and Live Context. The Live Context screen keeps the beat, network, crowd, proximity and incoming-signal simulations inside the wristband interface.
+The browser shows only the band. Start at **Welcome, Nayaka**, touch the fingerprint or press OK to enter Pulse Festival, then explore live mode, haptic music, friends, quick signals, lyrics, venue cues, quiet space, accessibility settings, help and Live Context. The band buttons provide Back, Next and OK navigation while the rectangular screen provides direct prototype touch targets. The Live Context screen keeps the beat, Bluetooth link, crowd, proximity and incoming-signal simulations inside the band interface.
 
 ## Prototype scope
 
@@ -31,7 +31,8 @@ prototype/
   screens/
   data/
   static/
-    watch.png
+    watch.png (earlier concept asset, not used)
+    BandFrame.js
     Initial Idea.png
   package.json
 ```

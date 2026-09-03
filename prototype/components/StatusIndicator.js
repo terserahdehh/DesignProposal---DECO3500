@@ -2,12 +2,15 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme';
 
-export default function StatusIndicator({ poorNetwork = false, battery = 82, small = false }) {
+export default function StatusIndicator({ connectionState, poorNetwork = false, battery = 82, small = false }) {
+  const state = connectionState || (poorNetwork ? 'Weak' : 'Connected');
+  const disconnected = state === 'Disconnected';
+  const weak = state === 'Weak';
   return (
     <View style={[styles.row, small && styles.smallRow]}>
       <View style={styles.network}>
-        <View style={[styles.dot, { backgroundColor: poorNetwork ? colors.yellow : colors.green }]} />
-        <Text style={styles.text}>{poorNetwork ? 'NETWORK WEAK' : 'NETWORK GOOD'}</Text>
+        <View style={[styles.dot, { backgroundColor: disconnected ? colors.danger : weak ? colors.yellow : colors.green }]} />
+        <Text style={styles.text}>{disconnected ? 'BLUETOOTH OFFLINE' : weak ? 'BLUETOOTH WEAK' : 'BLUETOOTH LINK'}</Text>
       </View>
       <View style={styles.batteryWrap}>
         <View style={styles.battery}><View style={[styles.fill, { width: `${battery}%` }]} /></View>
@@ -18,7 +21,7 @@ export default function StatusIndicator({ poorNetwork = false, battery = 82, sma
 }
 
 export function MiniBanner({ children, tone = 'aqua' }) {
-  const toneColor = tone === 'orange' ? colors.orange : tone === 'pink' ? colors.pink : tone === 'green' ? colors.green : colors.aqua;
+  const toneColor = tone === 'orange' ? colors.orange : tone === 'pink' ? colors.pink : tone === 'red' ? colors.danger : tone === 'green' ? colors.green : colors.aqua;
   return (
     <View style={[styles.banner, { borderColor: `${toneColor}66`, backgroundColor: `${toneColor}12` }]}>
       <View style={[styles.dot, { backgroundColor: toneColor }]} />
