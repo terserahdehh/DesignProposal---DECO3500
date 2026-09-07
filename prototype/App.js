@@ -1,389 +1,190 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import BandFrame from './components/BandFrame';
-import ScreenTransition from './components/ScreenTransition';
-import { eventData, incomingSignalOptions, initialFriends, places, signalMeta, signalOptions } from './data/mockData';
-import AccessibilityScreen from './screens/AccessibilityScreen';
-import ContextScreen from './screens/ContextScreen';
-import FriendDetailScreen from './screens/FriendDetailScreen';
-import FriendsScreen from './screens/FriendsScreen';
-import HapticScreen from './screens/HapticScreen';
-import HelpScreen from './screens/HelpScreen';
-import HomeScreen from './screens/HomeScreen';
-import LyricsScreen from './screens/LyricsScreen';
-import LiveModeScreen from './screens/LiveModeScreen';
-import NavigateScreen from './screens/NavigateScreen';
-import PlaceDetailScreen from './screens/PlaceDetailScreen';
-import SignalScreen from './screens/SignalScreen';
-import WelcomeScreen from './screens/WelcomeScreen';
-import { colors } from './theme';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, Animated, AccessibilityInfo, Platform } from 'react-native';
+import { FRIENDS, OPTIONS } from './data/mockData';
+import { THEME } from './theme';
+import { createInitialState, simulationReducer, connectedCount } from './utils/simulation';
+import { triggerHaptic, cancelHaptic } from './utils/haptics';
+import FestivalBand from './components/FestivalBand';
+import PrototypeControls from './components/PrototypeControls';
+import Icon from './components/Icon';
 
-const defaultSettings = {
-  haptics: true,
-  lights: 'Full',
-  intensity: 'Medium',
-  hapticMode: 'Beat',
-  largeLyrics: false,
-  crowdAlerts: true,
-  location: 'Precise',
-};
+const FEEDBACK_LABELS = { incoming: 'Incoming message · short pulse', send: 'Message sent · short pulse', nearby: 'Friend very near · gentle pulse', sos: 'Group SOS · alert pulse' };
 
-const homeDestinations = ['friends', 'haptics', 'lyrics', 'navigate', 'live'];
-const connectionStates = ['Connected', 'Weak', 'Disconnected'];
-
-const defaultLightCue = {
-  color: colors.aqua,
-  mode: 'normal',
-  title: 'LIGHT SIGNAL READY',
-  detail: 'Ready for group cues',
-};
-
-function friendHeading(distance, baseHeading) {
-  if (distance <= 3) return 5;
-  if (distance <= 7) return 18;
-  if (distance <= 12) return 35;
-  if (distance <= 18) return 52;
-  return baseHeading;
+function navigationHint(state) {
+  switch (state.view) {
+    case 'home': return ['Previous option', 'Open menu', 'Next option'];
+    case 'menu': return ['Previous option', 'Select', 'Next option'];
+    case 'friends': return ['Previous / back', 'Find friend', 'Next friend'];
+    case 'tracking': return ['Friend list', 'Close finding', 'Next friend'];
+    case 'confirm': return ['Cancel', 'Send', 'Cancel / next'];
+    case 'incoming': return ['Dismiss', 'Dismiss', 'Dismiss'];
+    default: return ['Main options', 'Main options', 'Main options'];
+  }
 }
 
-function nextFriendDistance(distance) {
-  if (distance <= 0) return 0;
-  if (distance <= 3) return 0;
-  if (distance <= 7) return 3;
-  if (distance <= 12) return 7;
-  return distance - 6;
-}
-
-function nextNavigationDistance(distance) {
-  if (distance <= 0) return 0;
-  if (distance <= 8) return 0;
-  if (distance <= 18) return 8;
-  return Math.max(18, distance - 12);
+function screenDescription(state) {
+  if (state.view === 'home') return 'Home';
+  if (state.view === 'menu') return OPTIONS[state.menuIndex].label;
+  if (state.view === 'friends') return 'Choose a friend';
+  if (state.view === 'tracking') return `Finding ${FRIENDS.find(friend => friend.id === state.targetId).name}`;
+  if (state.view === 'confirm') return `${OPTIONS.find(option => option.id === state.signalId)?.label} · confirm`;
+  if (state.view === 'incoming') return 'Incoming message';
+  if (state.view === 'unavailable') return 'No connected friends';
+  return state.result?.signalId === 'sos' ? 'Group SOS sent' : 'Message sent';
 }
 
 export default function App() {
-  const [screen, setScreen] = useState('welcome');
-  const [connectionState, setConnectionState] = useState('Connected');
-  const [batteryLevel, setBatteryLevel] = useState(eventData.battery);
-  const [crowdLevel, setCrowdLevel] = useState(eventData.crowdLevel);
-  const [crowdAlert, setCrowdAlert] = useState(false);
-  const [beatTick, setBeatTick] = useState(0);
-  const [settings, setSettings] = useState(defaultSettings);
-  const [selectedFriendId, setSelectedFriendId] = useState(2);
-  const [friendFocusIndex, setFriendFocusIndex] = useState(1);
-  const [signalFocusIndex, setSignalFocusIndex] = useState(0);
-  const [signalRequest, setSignalRequest] = useState(null);
-  const [placeFocusIndex, setPlaceFocusIndex] = useState(0);
-  const [homeFocusIndex, setHomeFocusIndex] = useState(0);
-  const [distances, setDistances] = useState(() => Object.fromEntries(initialFriends.map((friend) => [friend.id, friend.distance])));
-  const [friendStatuses, setFriendStatuses] = useState(() => Object.fromEntries(initialFriends.map((friend) => [friend.id, friend.status])));
-  const [selectedPlace, setSelectedPlace] = useState(null);
-  const [navigation, setNavigation] = useState({ active: false, distance: 0, arrived: false });
-  const [lightCue, setLightCue] = useState(defaultLightCue);
-  const [groupSignal, setGroupSignal] = useState(null);
-  const [incomingSignal, setIncomingSignal] = useState(null);
-  const [incomingIndex, setIncomingIndex] = useState(0);
-  const [groupNotice, setGroupNotice] = useState('');
-  const [hapticNotice, setHapticNotice] = useState(null);
-  const lightTimer = useRef(null);
-  const noticeTimer = useRef(null);
-  const hapticTimer = useRef(null);
+  const [state, dispatch] = useReducer(simulationReducer, undefined, createInitialState);
+  const { width } = useWindowDimensions();
+  const [stageWidth, setStageWidth] = useState(650);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [hapticDelivered, setHapticDelivered] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(true);
+  const motion = useRef(new Animated.Value(0)).current;
+  const wide = width >= 1100;
+  const count = connectedCount(state);
+  const hints = navigationHint(state);
 
-  const friends = useMemo(() => initialFriends.map((friend) => {
-    const distance = distances[friend.id] ?? friend.distance;
-    const moved = distance < friend.distance;
-    const sharing = settings.location !== 'Off';
-    const status = !sharing
-      ? 'Location Hidden'
-      : friendStatuses[friend.id] || (moved ? 'Moving' : friend.status);
-    return {
-      ...friend,
-      distance,
-      location: sharing ? friend.location : 'Location Hidden',
-      status,
-      connection: !sharing ? 'Private' : connectionState === 'Disconnected' ? 'Disconnected' : distance <= 7 ? 'Strong' : distance <= 30 ? 'Good' : 'Weak',
-      heading: friendHeading(distance, friend.heading),
-      sharing,
-    };
-  }), [connectionState, distances, friendStatuses, settings.location]);
-
-  const selectedFriend = friends.find((friend) => friend.id === selectedFriendId) || friends[0];
-
-  useEffect(() => () => {
-    if (lightTimer.current) clearTimeout(lightTimer.current);
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    if (hapticTimer.current) clearTimeout(hapticTimer.current);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(value => { if (mounted) setReduceMotion(value); }).catch(() => {});
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { mounted = false; listener.remove(); };
   }, []);
 
-  const showNotice = (message) => {
-    setGroupNotice(message);
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setGroupNotice(''), 4200);
-  };
+  useEffect(() => {
+    if (!state.feedback.type) { setFeedbackVisible(false); motion.setValue(0); cancelHaptic(); return; }
+    setFeedbackVisible(true);
+    setHapticDelivered(triggerHaptic(state.feedback.type, state.hapticsEnabled));
+    // One small movement, never a repeating flash. Respect reduced-motion settings.
+    const animation = Animated.sequence([-2, 2, -1, 0].map(value => Animated.timing(motion, { toValue: value, duration: 75, useNativeDriver: Platform.OS !== 'web' })));
+    if (!reduceMotion) animation.start();
+    const timeout = setTimeout(() => setFeedbackVisible(false), 1800);
+    return () => { clearTimeout(timeout); animation.stop(); motion.setValue(0); cancelHaptic(); };
+  }, [state.feedback.id, motion, reduceMotion]);
 
-  const triggerLight = (mode, color, title, detail, duration = 4600) => {
-    setLightCue({ mode, color, title, detail });
-    if (lightTimer.current) clearTimeout(lightTimer.current);
-    lightTimer.current = setTimeout(() => setLightCue(defaultLightCue), duration);
-  };
+  useEffect(() => { if (!state.hapticsEnabled) cancelHaptic(); }, [state.hapticsEnabled]);
 
-  const triggerHaptic = (pattern = 'medium', force = false) => {
-    if (!settings.haptics && !force) return;
-    const patterns = {
-      soft: [25],
-      medium: [45, 55, 45],
-      strong: [90, 70, 90, 70, 90],
-      beat: [30],
-      bass: [85],
-      full: [35, 45, 80],
-      arrival: [35, 60, 35],
-    };
-    const strength = settings.intensity === 'Soft' ? 0.7 : settings.intensity === 'Strong' ? 1.35 : 1;
-    const vibration = (patterns[pattern] || patterns.medium).map((duration) => Math.round(duration * strength));
-    const vibrationSupported = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
-    if (vibrationSupported) {
-      try { navigator.vibrate(vibration); } catch (error) { /* Browser vibration is optional. */ }
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    function onKeyDown(event) {
+      const target = event.target;
+      // Leave focused controls with their normal keyboard activation.
+      if (target?.closest?.('button, input, textarea, select, [role="button"], [role="switch"], [contenteditable="true"]')) return;
+      const button = { ArrowLeft: 'back', ArrowRight: 'next', Enter: 'ok' }[event.key];
+      if (button && !event.repeat) { event.preventDefault(); dispatch({ type: 'BUTTON', button }); }
     }
-    setHapticNotice({ id: Date.now(), label: vibrationSupported ? (force ? 'ALERT HAPTIC ACTIVE' : 'HAPTIC ACTIVE') : 'HAPTIC SIMULATED', pattern });
-    if (hapticTimer.current) clearTimeout(hapticTimer.current);
-    hapticTimer.current = setTimeout(() => setHapticNotice(null), 1500);
-  };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
-  const updateSetting = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
-  const goHome = () => { setSignalRequest(null); setScreen('home'); };
-  const goBack = () => setScreen('home');
-  const navigate = (destination) => setScreen(destination);
+  return <ScrollView style={styles.page} contentContainerStyle={styles.scrollContent}>
+    <View style={[styles.shell, width < 600 && styles.smallShell]}>
+      <View style={styles.header}>
+        <View style={styles.wordmark}><View style={styles.logo}><Icon name="pulse" size={23} color="#DEC1FF" /></View><Text style={styles.brand}>PulseBand<Text style={styles.brandPeriod}>.</Text></Text></View>
+        <View style={styles.headerMeta}><Text style={styles.course}>DECO3500</Text><Text style={styles.version}>INTERACTIVE PROTOTYPE / 01</Text></View>
+      </View>
 
-  const selectFriend = (friend) => {
-    setSelectedFriendId(friend.id);
-    setFriendFocusIndex(Math.max(0, friends.findIndex((item) => item.id === friend.id)));
-    setScreen('friend-detail');
-  };
+      <View style={[styles.workspace, !wide && styles.stacked]}>
+        <View style={[styles.main, !wide && styles.mainStacked]}>
+          <View style={styles.mainHeading}>
+            <View><Text style={styles.eyebrow}>FESTIVAL BAND</Text><Text accessibilityRole="header" style={[styles.heading, width < 600 && { fontSize: 29 }]}>Together, further.</Text></View>
+            <View style={styles.liveTag}><Icon name="bluetooth" size={15} color="#D3B0F5" /><Text style={styles.liveText}>{'SIMULATED\nBLUETOOTH'}</Text></View>
+          </View>
+          <Text style={styles.intro}>Find your people. Send a signal. Stay together.</Text>
 
-  const moveFriendCloser = () => {
-    const id = selectedFriendId || 1;
-    const friend = friends.find((item) => item.id === id) || friends[0];
-    const next = nextFriendDistance(friend.distance);
-    setDistances((current) => ({ ...current, [id]: next }));
-    setFriendStatuses((current) => ({ ...current, [id]: next <= 3 ? 'Nearby' : 'Moving' }));
-    if (next <= 7) {
-      triggerLight('nearby', friend.color, `${friend.name.toUpperCase()} NEARBY`, next === 0 ? 'Arrived · signal strong' : 'Signal getting stronger');
-      triggerHaptic(next === 0 ? 'arrival' : 'medium', true);
-    }
-  };
+          <View style={styles.simulator}>
+            <View style={styles.simulatorTop}><Text style={styles.smallCaps}>LIVE BAND SIMULATION</Text><Text style={styles.screenName}>{screenDescription(state)}</Text></View>
+            <View style={styles.bandArea} onLayout={event => setStageWidth(event.nativeEvent.layout.width)}>
+              <FestivalBand state={state} width={stageWidth} onButton={button => dispatch({ type: 'BUTTON', button })} motion={motion} feedbackVisible={feedbackVisible} reduceMotion={reduceMotion} />
+            </View>
+            <View style={styles.hintRow}>
+              {['BACK', 'OK', 'NEXT'].map((name, i) => <View key={name} style={styles.hintItem}><Text style={styles.hintKey}>{i === 0 ? '◀  BACK' : i === 2 ? 'NEXT  ▶' : 'OK'}</Text><Text style={styles.hintText}>{hints[i]}</Text></View>)}
+            </View>
+            <View style={styles.feedbackRow} accessibilityLiveRegion="polite">
+              <Icon name={feedbackVisible ? 'pulse' : 'bluetooth'} size={16} color={state.event.kind === 'sos' ? '#FCA5A5' : THEME.accent} />
+              <Text style={styles.feedbackText}>{feedbackVisible ? `${FEEDBACK_LABELS[state.feedback.type]} · ${!state.hapticsEnabled ? 'haptics off · visual cue' : hapticDelivered ? 'vibration requested' : 'haptic simulated'}` : `BLUETOOTH ${state.bluetooth.toUpperCase()} · ${count} CONNECTED`}</Text>
+            </View>
+          </View>
 
-  const resetFriend = () => {
-    const friend = initialFriends.find((item) => item.id === selectedFriendId);
-    if (!friend) return;
-    setDistances((current) => ({ ...current, [friend.id]: friend.distance }));
-    setFriendStatuses((current) => ({ ...current, [friend.id]: friend.status }));
-    triggerLight('normal', colors.aqua, 'LIGHT SIGNAL READY', 'Friend simulation reset');
-  };
+          <View style={styles.circle}>
+            <View style={styles.circleHeader}><Text style={styles.circleTitle}>Your festival circle</Text><Text style={styles.circleCount}>{count} of 4 connected</Text></View>
+            <View style={styles.friendLegend}>
+              {FRIENDS.map(friend => <View key={friend.id} style={styles.legendItem} accessibilityLabel={`${friend.name}, ${friend.colorName}, ${state.connected[friend.id] ? 'connected' : 'disconnected'}`}>
+                <View style={[styles.legendDot, { backgroundColor: friend.color, opacity: state.connected[friend.id] ? 1 : 0.3, boxShadow: `0 0 12px ${friend.color}55` }]} />
+                <Text style={styles.friendName}>{friend.name}</Text><Text style={[styles.friendColor, { color: friend.color }]}>{friend.colorName}</Text>
+                {!state.connected[friend.id] && <Text style={styles.offline}>Offline</Text>}
+              </View>)}
+            </View>
+            <Text style={styles.circleNote}>Follow the coloured light. It grows brighter as you get closer.</Text>
+          </View>
 
-  const handleSignal = (signal, targetFriend = null) => {
-    const meta = signalMeta[signal] || signalMeta["I'm Safe"];
-    const recipients = targetFriend ? [targetFriend] : friends;
-    setGroupSignal({
-      signal,
-      targetName: targetFriend ? targetFriend.name : null,
-      recipients: recipients.map((friend) => friend.name),
-      response: null,
-    });
-    if (targetFriend && signal === 'Meet Me') {
-      setFriendStatuses((current) => ({ ...current, [targetFriend.id]: 'Wants to Meet' }));
-    }
-    triggerLight(meta.lightMode, meta.color, `${signal.toUpperCase()} SENT`, `${recipients.map((friend) => friend.name).join(', ')} received it`);
-    triggerHaptic(meta.haptic, true);
-  };
+          <View testID="demo-feedback" accessibilityLiveRegion="polite" style={[styles.event, state.event.kind === 'sos' && styles.alertEvent]}>
+            <Icon name={state.event.kind === 'sos' || state.event.kind === 'warning' ? 'sos' : state.event.kind === 'success' ? 'check' : 'message'} size={19} color={state.event.kind === 'sos' ? '#FCA5A5' : '#C7B2DB'} />
+            <Text style={styles.eventText}>{state.event.text}</Text>
+          </View>
+          <Text style={styles.note}>Digital proof-of-concept. Bluetooth, distance, battery and group messages are simulated. SOS alerts the connected group in this demo.</Text>
+        </View>
 
-  const handleSignalResponse = (response) => {
-    setGroupSignal((current) => current ? { ...current, response } : current);
-    showNotice(`Group response: ${response}`);
-    triggerLight('safe', colors.green, 'RESPONSE RECEIVED', response);
-    triggerHaptic('medium', true);
-  };
+        <View style={[styles.controlsColumn, !wide && styles.controlsStacked]}><PrototypeControls state={state} dispatch={dispatch} /></View>
+      </View>
 
-  const triggerIncomingSignal = () => {
-    const sample = incomingSignalOptions[incomingIndex % incomingSignalOptions.length];
-    const friend = initialFriends.find((item) => item.id === sample.friendId) || initialFriends[0];
-    const meta = signalMeta[sample.signal];
-    setIncomingIndex((current) => current + 1);
-    setIncomingSignal({ ...sample, friendName: friend.name, friendColor: friend.color, distance: distances[friend.id] });
-    setScreen('home');
-    triggerLight('received', friend.color, `${friend.name.toUpperCase()} SIGNAL`, sample.signal);
-    triggerHaptic(meta ? meta.haptic : 'medium', true);
-  };
-
-  const respondToIncoming = (response) => {
-    if (!incomingSignal) return;
-    const friend = friends.find((item) => item.id === incomingSignal.friendId);
-    setIncomingSignal(null);
-    if (friend) setFriendStatuses((current) => ({ ...current, [friend.id]: response === 'Coming' ? 'Moving' : 'Safe' }));
-    showNotice(`${incomingSignal.friendName} received “${response}”`);
-    triggerLight(response === 'Coming' ? 'meet' : 'safe', response === 'Coming' ? colors.violet : colors.green, 'RESPONSE SENT', `${incomingSignal.friendName} · ${response}`);
-    triggerHaptic('medium', true);
-  };
-
-  const selectPlace = (place) => {
-    setPlaceFocusIndex(Math.max(0, places.findIndex((item) => item.id === place.id)));
-    setSelectedPlace(place);
-    setNavigation({ active: false, distance: place.distance, arrived: place.distance === 0 });
-    setScreen('place-detail');
-  };
-
-  const toggleNavigation = () => {
-    if (!selectedPlace) return;
-    if (navigation.active && !navigation.arrived) {
-      setNavigation((current) => ({ ...current, active: false }));
-      showNotice('Guidance paused');
-      return;
-    }
-    setNavigation({ active: true, distance: selectedPlace.distance, arrived: selectedPlace.distance === 0 });
-    triggerLight('navigation', selectedPlace.accent, 'GUIDANCE ACTIVE', `${selectedPlace.title} · follow the arrow`);
-    triggerHaptic('soft');
-  };
-
-  const moveNavigation = () => {
-    if (!selectedPlace || !navigation.active) return;
-    const next = nextNavigationDistance(navigation.distance);
-    setNavigation({ active: true, distance: next, arrived: next === 0 });
-    if (next === 0) {
-      triggerLight('arrival', colors.green, 'YOU HAVE ARRIVED', selectedPlace.title);
-      triggerHaptic('arrival', true);
-    } else {
-      triggerLight('navigation', selectedPlace.accent, 'GUIDANCE ACTIVE', `${next} m remaining`);
-    }
-  };
-
-  const tellGroupTakingBreak = () => {
-    handleSignal('Taking a Break');
-    showNotice('“Taking a Break” sent to your group');
-  };
-
-  const cycleCrowd = () => {
-    const levels = ['Low', 'Medium', 'High'];
-    const next = levels[(levels.indexOf(crowdLevel) + 1) % levels.length];
-    setCrowdLevel(next);
-    setCrowdAlert(next === 'High');
-    if (next === 'High') {
-      triggerLight('crowd', colors.orange, 'HIGH CROWD', 'Stay with your group');
-      triggerHaptic('medium', true);
-    } else showNotice(`Crowd level set to ${next}`);
-  };
-
-  const cycleBattery = () => {
-    const levels = [82, 54, 18];
-    const next = levels[(levels.indexOf(batteryLevel) + 1) % levels.length];
-    setBatteryLevel(next);
-    showNotice(`Battery simulation set to ${next}%`);
-  };
-
-  const triggerCrowdAlert = () => {
-    setCrowdLevel('High');
-    setCrowdAlert(true);
-    triggerLight('crowd', colors.orange, 'HIGH CROWD', 'Stay with your group');
-    triggerHaptic('medium', true);
-  };
-
-  const resetDemo = () => {
-    setScreen('welcome');
-    setConnectionState('Connected');
-    setBatteryLevel(eventData.battery);
-    setCrowdLevel(eventData.crowdLevel);
-    setCrowdAlert(false);
-    setBeatTick(0);
-    setSettings(defaultSettings);
-    setSelectedFriendId(2);
-    setFriendFocusIndex(1);
-    setSignalFocusIndex(0);
-    setSignalRequest(null);
-    setPlaceFocusIndex(0);
-    setHomeFocusIndex(0);
-    setDistances(Object.fromEntries(initialFriends.map((friend) => [friend.id, friend.distance])));
-    setFriendStatuses(Object.fromEntries(initialFriends.map((friend) => [friend.id, friend.status])));
-    setSelectedPlace(null);
-    setNavigation({ active: false, distance: 0, arrived: false });
-    setGroupSignal(null);
-    setIncomingSignal(null);
-    setGroupNotice('');
-    setLightCue(defaultLightCue);
-    setHapticNotice(null);
-  };
-
-  const event = { ...eventData, battery: batteryLevel, crowdLevel, network: `Bluetooth ${connectionState}` };
-  const poorNetwork = connectionState !== 'Connected';
-  const navHeading = selectedPlace && selectedPlace.distance > 0
-    ? Math.max(5, Math.round(5 + ((selectedPlace.heading - 5) * navigation.distance) / selectedPlace.distance))
-    : 0;
-
-  const physicalBack = () => {
-    if (screen === 'welcome') return;
-    if (screen === 'friend-detail') { setScreen('friends'); return; }
-    if (screen === 'signals') { setSignalRequest(null); setScreen('friends'); return; }
-    if (screen === 'place-detail') { setScreen('navigate'); return; }
-    setScreen('home');
-  };
-
-  const physicalNext = () => {
-    if (screen === 'welcome') { updateSetting('lights', settings.lights === 'Full' ? 'Reduced' : settings.lights === 'Reduced' ? 'Off' : 'Full'); return; }
-    if (screen === 'home') { setHomeFocusIndex((current) => (current + 1) % homeDestinations.length); return; }
-    if (screen === 'friends') { setFriendFocusIndex((current) => (current + 1) % friends.length); return; }
-    if (screen === 'friend-detail') { moveFriendCloser(); return; }
-    if (screen === 'signals') { setSignalFocusIndex((current) => (current + 1) % signalOptions.length); return; }
-    if (screen === 'navigate') { setPlaceFocusIndex((current) => (current + 1) % places.length); return; }
-    if (screen === 'place-detail') { if (navigation.active && !navigation.arrived) moveNavigation(); else toggleNavigation(); return; }
-    if (screen === 'haptics') {
-      const modes = ['Beat', 'Bass', 'Full'];
-      updateSetting('hapticMode', modes[(modes.indexOf(settings.hapticMode || 'Beat') + 1) % modes.length]);
-      return;
-    }
-    if (screen === 'lyrics') { updateSetting('largeLyrics', !settings.largeLyrics); return; }
-    if (screen === 'settings') { updateSetting('haptics', !settings.haptics); return; }
-    if (screen === 'context') { cycleCrowd(); return; }
-    if (screen === 'live') { triggerHaptic('beat'); }
-  };
-
-  const physicalOk = () => {
-    if (screen === 'welcome') { setScreen('home'); return; }
-    if (screen === 'home') { setScreen(homeDestinations[homeFocusIndex]); return; }
-    if (screen === 'friends') { selectFriend(friends[friendFocusIndex] || friends[0]); return; }
-    if (screen === 'friend-detail') { handleSignal('Meet Me', selectedFriend); return; }
-    if (screen === 'signals') { setSignalRequest({ signal: signalOptions[signalFocusIndex], token: Date.now() }); return; }
-    if (screen === 'navigate') { selectPlace(places[placeFocusIndex] || places[0]); return; }
-    if (screen === 'place-detail') { toggleNavigation(); return; }
-    if (screen === 'live') { triggerHaptic('beat'); return; }
-    if (screen === 'haptics') { updateSetting('haptics', !settings.haptics); return; }
-    if (screen === 'lyrics') { updateSetting('largeLyrics', !settings.largeLyrics); return; }
-    if (screen === 'settings') { updateSetting('lights', settings.lights === 'Full' ? 'Reduced' : settings.lights === 'Reduced' ? 'Off' : 'Full'); return; }
-    if (screen === 'context') { triggerIncomingSignal(); }
-  };
-
-  const content = (() => {
-    switch (screen) {
-      case 'welcome': return <WelcomeScreen haptics={settings.haptics} lights={settings.lights} onToggleHaptics={() => updateSetting('haptics', !settings.haptics)} onCycleLights={() => updateSetting('lights', settings.lights === 'Full' ? 'Reduced' : settings.lights === 'Reduced' ? 'Off' : 'Full')} onOpenCompass={() => setScreen('friend-detail')} onOpenNavigate={() => setScreen('navigate')} onEnter={() => setScreen('home')} />;
-      case 'home': return <HomeScreen event={event} friends={friends} settings={settings} homeFocusIndex={homeFocusIndex} connectionState={connectionState} poorNetwork={poorNetwork} crowdAlert={crowdAlert} beatTick={beatTick} lightCue={lightCue} groupSignal={groupSignal} incomingSignal={incomingSignal} hapticNotice={hapticNotice} groupNotice={groupNotice} onNavigate={navigate} onSettings={() => setScreen('settings')} onContext={() => setScreen('context')} onHelp={() => setScreen('help')} onRespondIncoming={respondToIncoming} />;
-      case 'live': return <LiveModeScreen hapticsEnabled={settings.haptics} hapticStrength={settings.intensity} lights={settings.lights} lightCue={lightCue} hapticNotice={hapticNotice} onToggleHaptics={() => updateSetting('haptics', !settings.haptics)} onHaptic={triggerHaptic} onBack={goBack} onHome={goHome} />;
-      case 'haptics': return <HapticScreen mode={settings.hapticMode || 'Beat'} intensity={settings.intensity} paused={!settings.haptics} lights={settings.lights} lightCue={lightCue} hapticNotice={hapticNotice} onMode={(value) => updateSetting('hapticMode', value)} onIntensity={(value) => updateSetting('intensity', value)} onPause={() => updateSetting('haptics', !settings.haptics)} onHaptic={triggerHaptic} onBack={goBack} onHome={goHome} />;
-      case 'friends': return <FriendsScreen friends={friends} focusedFriendId={friends[friendFocusIndex]?.id} locationSharing={settings.location} lights={settings.lights} connectionState={connectionState} poorNetwork={poorNetwork} lightCue={lightCue} onSelectFriend={selectFriend} onSignals={() => setScreen('signals')} onBack={goBack} onHome={goHome} />;
-      case 'friend-detail': return <FriendDetailScreen friend={selectedFriend} distance={selectedFriend.distance} locationSharing={settings.location} lights={settings.lights} lightCue={lightCue} hapticNotice={hapticNotice} onWalk={moveFriendCloser} onReset={resetFriend} onSignal={(signal) => handleSignal(signal, selectedFriend)} onBack={() => setScreen('friends')} onHome={goHome} />;
-      case 'signals': return <SignalScreen friends={friends} focusedSignal={signalOptions[signalFocusIndex]} physicalSignal={signalRequest} groupSignal={groupSignal} lights={settings.lights} lightCue={lightCue} hapticNotice={hapticNotice} onSend={handleSignal} onResponse={handleSignalResponse} onBack={() => { setSignalRequest(null); setScreen('friends'); }} onHome={goHome} />;
-      case 'lyrics': return <LyricsScreen large={settings.largeLyrics} onToggleLarge={() => updateSetting('largeLyrics', !settings.largeLyrics)} onBack={goBack} onHome={goHome} />;
-      case 'navigate': return <NavigateScreen crowdLevel={crowdLevel} focusedPlaceId={places[placeFocusIndex]?.id} onSelect={selectPlace} onBack={goBack} onHome={goHome} />;
-      case 'place-detail': return selectedPlace ? <PlaceDetailScreen place={selectedPlace} crowdLevel={crowdLevel} navigation={navigation} heading={navHeading} lights={settings.lights} lightCue={lightCue} onGuide={toggleNavigation} onWalk={moveNavigation} onTellGroup={tellGroupTakingBreak} onBack={() => setScreen('navigate')} onHome={goHome} /> : <NavigateScreen crowdLevel={crowdLevel} focusedPlaceId={places[placeFocusIndex]?.id} onSelect={selectPlace} onBack={goBack} onHome={goHome} />;
-      case 'settings': return <AccessibilityScreen settings={{ ...settings, lights: settings.lights || 'Full', intensity: settings.intensity || 'Medium', location: settings.location || 'Precise' }} onChange={updateSetting} onBack={goBack} onHome={goHome} />;
-      case 'context': return <ContextScreen connectionState={connectionState} batteryLevel={batteryLevel} crowdLevel={crowdLevel} onToggleNetwork={() => setConnectionState((current) => connectionStates[(connectionStates.indexOf(current) + 1) % connectionStates.length])} onCycleBattery={cycleBattery} onBeat={() => { setBeatTick((value) => value + 1); triggerHaptic('beat'); }} onMoveFriend={moveFriendCloser} onResetFriend={resetFriend} onCrowdAlert={triggerCrowdAlert} onCycleCrowd={cycleCrowd} onIncomingSignal={triggerIncomingSignal} onOpenHelp={() => setScreen('help')} onBack={goBack} onHome={goHome} />;
-      case 'help': return <HelpScreen lights={settings.lights} lightCue={lightCue} onRequestHelp={() => { triggerLight('help', colors.danger, 'SUPPORT ALERT', 'Simulated group help request'); triggerHaptic('strong', true); }} onBack={goBack} onHome={goHome} />;
-      default: return <HomeScreen event={event} friends={friends} settings={settings} connectionState={connectionState} poorNetwork={poorNetwork} crowdAlert={crowdAlert} beatTick={beatTick} lightCue={lightCue} groupSignal={groupSignal} incomingSignal={incomingSignal} hapticNotice={hapticNotice} groupNotice={groupNotice} onNavigate={navigate} onSettings={() => setScreen('settings')} onContext={() => setScreen('context')} onHelp={() => setScreen('help')} onRespondIncoming={respondToIncoming} />;
-    }
-  })();
-
-  return (
-    <View style={styles.root}>
-      <BandFrame screenKey={screen} friends={friends} selectedFriendId={selectedFriendId} lightCue={lightCue} onBack={physicalBack} onNext={physicalNext} onOk={physicalOk}><ScreenTransition transitionKey={screen}>{content}</ScreenTransition></BandFrame>
+      <View style={styles.footer}><Text style={styles.footerText}>SOCIAL & MOBILE COMPUTING</Text><Text style={styles.footerText}>FOUR FRIENDS. FOUR COLOURS.</Text></View>
     </View>
-  );
+  </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: '100vh', backgroundColor: '#F3F7FB', alignItems: 'center', justifyContent: 'center', overflow: 'auto', padding: 12 },
+  page: { flex: 1, backgroundColor: THEME.page },
+  scrollContent: { alignItems: 'center', minHeight: '100%' },
+  shell: { width: '100%', maxWidth: 1330, paddingHorizontal: 40, paddingTop: 26, paddingBottom: 24 },
+  smallShell: { paddingHorizontal: 14, paddingTop: 18 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1D2C42', paddingBottom: 24, marginBottom: 31, gap: 12 },
+  wordmark: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logo: { width: 37, height: 37, borderRadius: 11, backgroundColor: '#261B3A', borderWidth: 1, borderColor: '#6C3D91', alignItems: 'center', justifyContent: 'center' },
+  brand: { color: THEME.text, fontSize: 25, fontWeight: '800', letterSpacing: -0.8 },
+  brandPeriod: { color: '#BD78EE' },
+  headerMeta: { alignItems: 'flex-end', flexShrink: 1, gap: 5 },
+  course: { color: '#D6DFEE', fontSize: 13, fontWeight: '700', letterSpacing: 1.4 },
+  version: { color: '#91A3BB', fontSize: 10, letterSpacing: 1.5, textAlign: 'right' },
+  workspace: { flexDirection: 'row', alignItems: 'flex-start', gap: 34 },
+  stacked: { flexDirection: 'column', gap: 28 },
+  main: { flex: 1, minWidth: 0, paddingTop: 5 },
+  mainStacked: { flex: undefined, width: '100%' },
+  mainHeading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  eyebrow: { color: '#C1A4DC', fontSize: 12, fontWeight: '700', letterSpacing: 2.6, marginBottom: 10 },
+  heading: { color: THEME.text, fontSize: 39, lineHeight: 44, fontWeight: '800', letterSpacing: -1.4 },
+  liveTag: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: '#49325F', backgroundColor: '#191A30' },
+  liveText: { color: '#D6B9F4', fontSize: 10, fontWeight: '700', lineHeight: 14, letterSpacing: 0.7 },
+  intro: { color: THEME.secondary, fontSize: 16, lineHeight: 24, marginTop: 9, marginBottom: 29 },
+  simulator: { borderWidth: 1, borderColor: '#203149', borderRadius: 18, backgroundColor: '#0A1626', overflow: 'hidden' },
+  simulatorTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 19, paddingTop: 18, alignItems: 'center' },
+  smallCaps: { color: '#8E9EB6', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  screenName: { color: '#CDD7E9', fontSize: 12, fontWeight: '500', textAlign: 'right', flexShrink: 1 },
+  bandArea: { width: '100%', minHeight: 280 },
+  hintRow: { flexDirection: 'row', width: '100%', justifyContent: 'center', paddingHorizontal: 12, paddingBottom: 23, gap: 10 },
+  hintItem: { alignItems: 'center', flex: 1, maxWidth: 160, gap: 6 },
+  hintKey: { color: '#E5D6F7', fontSize: 12, letterSpacing: 1.3, fontWeight: '700' },
+  hintText: { color: THEME.muted, fontSize: 12, textAlign: 'center' },
+  feedbackRow: { borderTopWidth: 1, borderTopColor: '#203149', minHeight: 44, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  feedbackText: { color: '#C9BADB', fontSize: 12, fontWeight: '500', letterSpacing: 0.3, flexShrink: 1 },
+  circle: { marginTop: 24 },
+  circleHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  circleTitle: { color: THEME.text, fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
+  circleCount: { color: THEME.muted, fontSize: 12 },
+  friendLegend: { flexDirection: 'row', paddingVertical: 17, borderWidth: 1, borderColor: '#203149', borderRadius: 12, backgroundColor: '#0A1626' },
+  legendItem: { flex: 1, alignItems: 'center', gap: 5 },
+  legendDot: { width: 12, height: 12, borderRadius: 6, marginBottom: 5 },
+  friendName: { color: THEME.text, fontSize: 15, fontWeight: '600' },
+  friendColor: { fontSize: 12, fontWeight: '600' },
+  offline: { color: THEME.secondary, fontSize: 11 },
+  circleNote: { color: '#A5B5CB', fontSize: 14, lineHeight: 21, marginTop: 14 },
+  event: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 22, padding: 14, backgroundColor: '#171C30', borderLeftWidth: 2, borderLeftColor: '#8B54B6', borderRadius: 6, minHeight: 56 },
+  alertEvent: { backgroundColor: '#301C2A', borderLeftColor: '#EF4444' },
+  eventText: { color: '#DCD6E7', fontSize: 14, lineHeight: 21, flex: 1 },
+  note: { color: '#96A6BD', fontSize: 12, lineHeight: 19, marginTop: 13, paddingHorizontal: 3 },
+  controlsColumn: { width: 374 },
+  controlsStacked: { width: '100%' },
+  footer: { borderTopWidth: 1, borderTopColor: '#1D2C42', marginTop: 32, paddingTop: 19, flexDirection: 'row', justifyContent: 'space-between', gap: 16 },
+  footerText: { color: '#8FA2BC', fontSize: 10, letterSpacing: 1.5, flexShrink: 1 },
 });
