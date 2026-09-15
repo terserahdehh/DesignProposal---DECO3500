@@ -19,12 +19,13 @@ function HardwareButton({ name, diameter, onPress }) {
 export default function BandButtons({ diameter, onButton, reduceMotion = false }) {
   const [sosFocused, setSosFocused] = useState(false);
   const scale = diameter / 420;
-  const sosWidth = diameter * 0.15;
+  const sosWidth = diameter * 0.10;
   const sosHeight = sosWidth * (12 / 17);
-  // Keep the triangle clear of the display and casing text, with a larger touch target.
-  const sosTargetWidth = Math.max(44, sosWidth + 8 * scale);
-  const sosTargetHeight = Math.max(44, sosHeight + 8 * scale);
-  const sosFontSize = Math.max(8, diameter * 0.028);
+  // Keep the triangle clear of the display, lights and casing text.
+  // Visible triangle is small; the pressable touch target stays ≥ 44 × 44 for accessibility.
+  const sosTargetWidth = Math.max(44, sosWidth + 12 * scale);
+  const sosTargetHeight = Math.max(44, sosHeight + 12 * scale);
+  const sosFontSize = Math.max(7, diameter * 0.022);
   const sosShadow = `drop-shadow(0 ${2 * scale}px 0 #8E1919) drop-shadow(0 ${4 * scale}px ${3 * scale}px rgba(0,0,0,0.22))`;
   const sosPressedShadow = `drop-shadow(0 ${0.5 * scale}px 0 #8E1919) drop-shadow(0 ${scale}px ${1.5 * scale}px rgba(0,0,0,0.2))`;
   const sosTransition = { transitionDuration: reduceMotion ? '0s' : '100ms' };
@@ -44,7 +45,7 @@ export default function BandButtons({ diameter, onButton, reduceMotion = false }
       style={[
         styles.sosHitArea,
         {
-          top: diameter * 0.785 - (sosTargetHeight - sosHeight) / 2,
+          top: diameter * 0.81 - (sosTargetHeight - sosHeight) / 2,
           left: (diameter - sosTargetWidth) / 2,
           width: sosTargetWidth,
           height: sosTargetHeight,
