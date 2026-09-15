@@ -215,3 +215,25 @@ test('incoming message dismissal does not count as SOS confirmation', () => {
   assert.equal(state.result, null);
   assert.equal(press(state, 'ok').result.signalId, 'sos');
 });
+
+test('incoming overlay controls never advance or cancel pending SOS confirmation', () => {
+  let state = press(press(createInitialState(), 'sos'), 'ok');
+  state = simulationReducer(state, { type: 'INCOMING', friendId: 'nala' });
+
+  for (const button of ['back', 'ok', 'next']) {
+    const dismissed = press(state, button);
+    assert.equal(dismissed.view, 'confirm');
+    assert.equal(dismissed.sosConfirmations, 1);
+    assert.equal(dismissed.result, null);
+    state = simulationReducer(dismissed, { type: 'INCOMING', friendId: 'nala' });
+  }
+
+  state = press(state, 'back');
+  assert.equal(state.view, 'confirm');
+  state = press(state, 'back');
+  assert.equal(state.view, 'menu');
+  assert.equal(state.sosConfirmations, 0);
+  state = press(state, 'sos');
+  assert.equal(state.sosConfirmations, 0);
+  assert.equal(state.view, 'confirm');
+});
