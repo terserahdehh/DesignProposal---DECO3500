@@ -29,6 +29,24 @@ export default function FestivalBand({ state, width, onButton, motion, feedbackV
         <BandButtons diameter={diameter} onButton={onButton} reduceMotion={reduceMotion} />
         <BandScreen state={state} diameter={diameter} reduceMotion={reduceMotion} />
         <Text style={[styles.casingText, { bottom: diameter * 0.072, fontSize: diameter * 0.021 }]}>TOGETHER, FURTHER.</Text>
+        {/* Compass guide track — subtle ring the friend markers sit on */}
+        <View pointerEvents="none" style={[styles.compassTrack, {
+          width: diameter * 0.844, height: diameter * 0.844,
+          borderRadius: diameter * 0.422,
+          left: diameter * 0.078, top: diameter * 0.078,
+        }]} />
+        {/* Cardinal tick marks */}
+        {[0, 90, 180, 270].map(deg => {
+          const rad = deg * Math.PI / 180;
+          const tickR = diameter * 0.422;
+          const tx = diameter / 2 + Math.cos(rad) * tickR;
+          const ty = diameter / 2 + Math.sin(rad) * tickR;
+          return <View key={deg} pointerEvents="none" style={[styles.tick, {
+            left: tx - 1, top: ty - diameter * 0.012,
+            width: 2, height: diameter * 0.024,
+            transform: [{ rotate: `${deg}deg` }],
+          }]} />;
+        })}
         {FRIENDS.map(friend => <FriendLight key={friend.id} friend={friend} diameter={diameter} direction={state.direction} connected={state.connected[friend.id]} {...lightForFriend(state, friend)} />)}
       </View>
     </Animated.View>
@@ -50,6 +68,8 @@ const styles = StyleSheet.create({
   innerBevel: { pointerEvents: 'none', position: 'absolute', top: 9, right: 9, bottom: 9, left: 9, borderRadius: 300, borderWidth: 1, borderColor: '#E0DED3' },
   brand: { position: 'absolute', width: '100%', textAlign: 'center', color: '#9B9D90', fontWeight: '800' },
   casingText: { position: 'absolute', width: '100%', textAlign: 'center', color: '#8B8E80', letterSpacing: 1.3, fontWeight: '700' },
+  compassTrack: { position: 'absolute', borderWidth: 1, borderColor: '#C8C9C0', borderStyle: 'dashed', opacity: 0.25 },
+  tick: { position: 'absolute', backgroundColor: '#B0B2A8', opacity: 0.3, borderRadius: 1 },
   sosBody: { boxShadow: '0 0 0 5px rgba(239,68,68,0.65), 0 0 65px 8px rgba(239,68,68,0.4), inset 0 4px 4px #FFFFFF, inset 0 -12px 17px rgba(72,83,58,0.23)' },
   feedbackBody: { boxShadow: '0 0 0 3px rgba(201,156,255,0.55), 0 0 35px rgba(168,85,247,0.2), inset 0 4px 4px #FFFFFF, inset 0 -12px 17px rgba(72,83,58,0.23)' },
 });
