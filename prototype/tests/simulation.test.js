@@ -76,6 +76,26 @@ test('direction moves around the device without changing friend identity or dist
   }
 });
 
+test('compass bearing for each friend rotates with simulated direction', () => {
+  // Each friend has a fixed angle. The compass arrow bearing should be friend.angle + direction.
+  for (const friend of FRIENDS) {
+    assert.equal(typeof friend.angle, 'number', `${friend.name} has a numeric angle`);
+  }
+  let state = findFriend(0); // tracking Nayaka (angle: -135)
+  assert.equal(state.view, 'tracking');
+  assert.equal(state.direction, 0);
+  // After one Move Direction (45°), Nayaka's bearing is -135 + 45 = -90
+  state = simulationReducer(state, { type: 'MOVE_DIRECTION' });
+  assert.equal(FRIENDS[0].angle + state.direction, -90);
+  // After another (90°), bearing is -135 + 90 = -45
+  state = simulationReducer(state, { type: 'MOVE_DIRECTION' });
+  assert.equal(FRIENDS[0].angle + state.direction, -45);
+  // Full rotation (360°) returns to original bearing
+  for (let i = 0; i < 6; i++) state = simulationReducer(state, { type: 'MOVE_DIRECTION' });
+  assert.equal(state.direction, 0);
+  assert.equal(FRIENDS[0].angle + state.direction, FRIENDS[0].angle);
+});
+
 for (const signal of ['toilet', 'break', 'home', 'safe']) {
   test(`${signal}: confirmation is required; Back/Next cancel; OK sends to four`, () => {
     const menu = chooseOption(signal);

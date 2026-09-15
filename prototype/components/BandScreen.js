@@ -22,7 +22,7 @@ export default function BandScreen({ state, diameter, reduceMotion }) {
   if (state.view === 'menu') content = <MenuScreen option={OPTIONS[state.menuIndex]} index={state.menuIndex} scale={scale} />;
   if (state.view === 'friends' || state.view === 'tracking') {
     const selected = state.view === 'friends' ? FRIENDS[state.friendIndex] : friend;
-    content = <FindFriendScreen friend={selected} distance={DISTANCES[state.steps[selected.id]]} isTracking={state.view === 'tracking'} connected={state.connected[selected.id]} bluetooth={state.bluetooth} scale={scale} />;
+    content = <FindFriendScreen friend={selected} distance={DISTANCES[state.steps[selected.id]]} isTracking={state.view === 'tracking'} connected={state.connected[selected.id]} bluetooth={state.bluetooth} direction={state.direction} scale={scale} />;
   }
   if (['confirm', 'result', 'unavailable'].includes(state.view)) {
     content = <ConfirmationScreen signal={state.signalId === 'sos' ? SOS_SIGNAL : OPTIONS.find(option => option.id === state.signalId) || OPTIONS[0]} sosConfirmations={state.sosConfirmations} result={state.view === 'result' ? state.result : null} unavailable={state.view === 'unavailable'} connected={count} scale={scale} />;
