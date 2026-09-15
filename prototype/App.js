@@ -16,7 +16,7 @@ function navigationHint(state) {
     case 'menu': return ['Previous option', 'Select', 'Next option'];
     case 'friends': return ['Previous / back', 'Find friend', 'Next friend'];
     case 'tracking': return ['Friend list', 'Close finding', 'Next friend'];
-    case 'confirm': return ['Cancel', 'Send', 'Cancel / next'];
+    case 'confirm': return ['Cancel', state.signalId === 'sos' ? `Confirm ${state.sosConfirmations + 1} of 3` : 'Send', 'Cancel / next'];
     case 'incoming': return ['Dismiss', 'Dismiss', 'Dismiss'];
     default: return ['Main options', 'Main options', 'Main options'];
   }
@@ -27,7 +27,7 @@ function screenDescription(state) {
   if (state.view === 'menu') return OPTIONS[state.menuIndex].label;
   if (state.view === 'friends') return 'Choose a friend';
   if (state.view === 'tracking') return `Finding ${FRIENDS.find(friend => friend.id === state.targetId).name}`;
-  if (state.view === 'confirm') return `${OPTIONS.find(option => option.id === state.signalId)?.label} · confirm`;
+  if (state.view === 'confirm') return `${state.signalId === 'sos' ? 'SOS' : OPTIONS.find(option => option.id === state.signalId)?.label} · confirm`;
   if (state.view === 'incoming') return 'Incoming message';
   if (state.view === 'unavailable') return 'No connected friends';
   return state.result?.signalId === 'sos' ? 'Group SOS sent' : 'Message sent';

@@ -1,8 +1,8 @@
-const { FRIENDS, OPTIONS, DISTANCES, INTENSITIES } = require('../data/mockData');
+const { FRIENDS, OPTIONS, SOS_SIGNAL, DISTANCES, INTENSITIES } = require('../data/mockData');
 
 function createInitialState() {
   return {
-    view: 'home', menuIndex: 0, friendIndex: 0, targetId: 'nayaka', controlFriendId: 'nayaka', signalId: null,
+    view: 'home', menuIndex: 0, friendIndex: 0, targetId: 'nayaka', controlFriendId: 'nayaka', signalId: null, sosConfirmations: 0,
     connected: Object.fromEntries(FRIENDS.map(friend => [friend.id, true])),
     steps: Object.fromEntries(FRIENDS.map(friend => [friend.id, 0])),
     direction: 0, bluetooth: 'good', battery: 86, hapticsEnabled: true,
@@ -32,6 +32,10 @@ function dismissOverlay(state) {
 }
 
 function navigate(state, button) {
+  if (button === 'sos') {
+    if (state.view === 'confirm' && state.signalId === 'sos') return state;
+    return { ...state, view: 'confirm', signalId: 'sos', sosConfirmations: 0, result: null, incomingId: null, resume: null };
+  }
   if (state.view === 'incoming' || state.view === 'result' || state.view === 'unavailable') {
     return dismissOverlay(state);
   }
@@ -51,7 +55,7 @@ function navigate(state, button) {
     }
     const option = OPTIONS[state.menuIndex];
     if (option.id === 'find') return { ...state, view: 'friends', friendIndex: 0 };
-    return { ...state, view: 'confirm', signalId: option.id };
+    return { ...state, view: 'confirm', signalId: option.id, sosConfirmations: 0 };
   }
   if (state.view === 'friends') {
     if (button === 'next') return { ...state, friendIndex: (state.friendIndex + 1) % FRIENDS.length };
@@ -75,15 +79,18 @@ function navigate(state, button) {
     return notify({ ...state, view: 'menu', menuIndex: 0 }, 'Finding closed. The friend’s simulated distance is kept.');
   }
   if (state.view === 'confirm') {
-    if (button === 'back') return notify({ ...state, view: 'menu' }, 'Signal cancelled. Nothing was sent.');
+    if (button === 'back') return notify({ ...state, view: 'menu', sosConfirmations: 0 }, 'Signal cancelled. Nothing was sent.');
     if (button === 'next') {
-      return notify({ ...state, view: 'menu', menuIndex: (state.menuIndex + 1) % OPTIONS.length }, 'Confirmation cancelled. Nothing was sent.');
+      return notify({ ...state, view: 'menu', sosConfirmations: 0, menuIndex: (state.menuIndex + 1) % OPTIONS.length }, 'Confirmation cancelled. Nothing was sent.');
+    }
+    if (state.signalId === 'sos' && state.sosConfirmations < 2) {
+      return { ...state, sosConfirmations: state.sosConfirmations + 1 };
     }
     const recipients = FRIENDS.filter(friend => state.connected[friend.id]).map(friend => friend.id);
     if (recipients.length === 0) {
       return notify({ ...state, view: 'unavailable' }, 'Nothing sent. Reconnect a friend’s band first.', 'warning');
     }
-    const signal = OPTIONS.find(option => option.id === state.signalId);
+    const signal = state.signalId === 'sos' ? SOS_SIGNAL : OPTIONS.find(option => option.id === state.signalId);
     const sos = signal.id === 'sos';
     return notify({ ...state, view: 'result', result: { signalId: signal.id, recipients } },
       sos ? `Group SOS simulated for ${recipients.length} connected band${recipients.length === 1 ? '' : 's'}.`
@@ -96,7 +103,7 @@ function navigate(state, button) {
 function simulationReducer(state, action) {
   switch (action.type) {
     case 'BUTTON':
-      return ['back', 'ok', 'next'].includes(action.button) ? navigate(state, action.button) : state;
+      return ['back', 'ok', 'next', 'sos'].includes(action.button) ? navigate(state, action.button) : state;
     case 'WALK': {
       if (state.view !== 'tracking') return notify(state, 'Open Find Friend, choose a friend, then press OK before walking.', 'warning');
       if (!state.connected[state.targetId]) return notify(state, 'This friend is disconnected. Reconnect their band before walking.', 'warning');
@@ -133,7 +140,7 @@ function simulationReducer(state, action) {
       if (!state.connected[friend.id]) return notify(state, `Reconnect ${friend.name} before triggering their message.`, 'warning');
       const resume = state.view === 'incoming' ? state.resume : {
         view: state.view, menuIndex: state.menuIndex, friendIndex: state.friendIndex,
-        targetId: state.targetId, signalId: state.signalId, result: state.result,
+        targetId: state.targetId, signalId: state.signalId, sosConfirmations: state.sosConfirmations, result: state.result,
       };
       return notify({ ...state, view: 'incoming', incomingId: friend.id, resume },
         `${friend.name}: ${friend.message} (simulated incoming message).`, 'incoming', 'incoming');

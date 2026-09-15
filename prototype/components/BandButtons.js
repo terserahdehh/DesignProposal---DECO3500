@@ -17,11 +17,52 @@ function HardwareButton({ name, diameter, onPress }) {
   </View>;
 }
 export default function BandButtons({ diameter, onButton }) {
-  return <View style={[styles.row, { top: diameter * 0.137, gap: diameter * 0.047 }]}>
-    {['back', 'ok', 'next'].map(name => <HardwareButton key={name} name={name} diameter={diameter} onPress={() => onButton(name)} />)}
-  </View>;
+  const [sosFocused, setSosFocused] = useState(false);
+  const sosWidth = diameter * 0.17;
+  const sosHeight = diameter * 0.12;
+
+  return <>
+    <View style={[styles.row, { top: diameter * 0.137, gap: diameter * 0.047 }]}>
+      {['back', 'ok', 'next'].map(name => <HardwareButton key={name} name={name} diameter={diameter} onPress={() => onButton(name)} />)}
+    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="SOS"
+      accessibilityHint="Opens confirmation. Press OK three times to send, or Back to cancel."
+      testID="band-sos"
+      onFocus={() => setSosFocused(true)}
+      onBlur={() => setSosFocused(false)}
+      onPress={() => onButton('sos')}
+      style={({ pressed }) => [
+        styles.sosHitArea,
+        {
+          top: diameter * 0.775,
+          left: (diameter - sosWidth) / 2,
+          width: sosWidth,
+          height: sosHeight,
+        },
+        sosFocused && styles.sosFocused,
+        pressed && styles.sosPressed,
+      ]}
+    >
+      <View style={[
+        styles.sosTriangle,
+        {
+          borderLeftWidth: sosWidth / 2,
+          borderRightWidth: sosWidth / 2,
+          borderBottomWidth: sosHeight,
+        },
+      ]} />
+      <Text style={[styles.sosText, { bottom: sosHeight * 0.13, fontSize: diameter * 0.029 }]}>SOS</Text>
+    </Pressable>
+  </>;
 }
 const styles = StyleSheet.create({
+  sosHitArea: { position: 'absolute', zIndex: 3, alignItems: 'center', justifyContent: 'flex-end' },
+  sosTriangle: { position: 'absolute', bottom: 0, width: 0, height: 0, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#C62828', filter: 'drop-shadow(0 3px 1px #8E1919) drop-shadow(0 5px 4px rgba(0,0,0,0.24))' },
+  sosText: { position: 'absolute', color: '#FFFFFF', fontWeight: '900', letterSpacing: 0.5 },
+  sosFocused: { outlineColor: '#7335B6', outlineWidth: 3, outlineStyle: 'solid', outlineOffset: 3, borderRadius: 4 },
+  sosPressed: { transform: [{ translateY: 2 }], opacity: 0.82 },
   row: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end' },
   buttonGroup: { alignItems: 'center', gap: 6 },
   printLabel: { color: '#62655F', fontWeight: '800', letterSpacing: 1.2 },

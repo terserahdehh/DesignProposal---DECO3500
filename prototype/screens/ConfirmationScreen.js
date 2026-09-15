@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Icon from '../components/Icon';
 import base from './screenStyles';
 
-export default function ConfirmationScreen({ signal, result, unavailable, connected, scale }) {
+export default function ConfirmationScreen({ signal, result, unavailable, connected, scale, sosConfirmations = 0 }) {
   if (unavailable) return <View style={base.center}>
     <Icon name="disconnect" size={30 * scale} />
     <Text style={[base.title, { fontSize: 20 * scale, lineHeight: 23 * scale }]}>{'NO FRIENDS\nCONNECTED'}</Text>
@@ -18,9 +18,10 @@ export default function ConfirmationScreen({ signal, result, unavailable, connec
   </View>;
 
   return <View style={base.center}>
-    <Text style={[base.title, { fontSize: 23 * scale, lineHeight: 27 * scale }]}>{sos ? 'SEND SOS\nTO ALL?' : 'SEND TO\nGROUP?'}</Text>
+    <Text style={[base.title, { fontSize: 23 * scale, lineHeight: 27 * scale }]}>{sos ? 'SEND SOS\nTO GROUP?' : 'SEND TO\nGROUP?'}</Text>
+    {sos && <Text style={[base.secondary, { fontSize: 13 * scale }]}>OK PRESSES: {sosConfirmations}/3</Text>}
     {connected < 4 && <Text style={[base.secondary, { fontSize: 12 * scale }]}>{connected} CONNECTED</Text>}
-    <View style={styles.hints}><Text style={[styles.hint, { fontSize: 12 * scale }]}>BACK CANCEL</Text><Text style={[styles.hint, { fontSize: 12 * scale }]}>OK SEND</Text></View>
+    <View style={styles.hints}><Text style={[styles.hint, { fontSize: 12 * scale }]}>BACK CANCEL</Text><Text style={[styles.hint, { fontSize: 12 * scale }]}>{sos ? (sosConfirmations === 2 ? 'OK SEND' : 'OK CONFIRM') : 'OK SEND'}</Text></View>
   </View>;
 }
 const styles = StyleSheet.create({ hints: { flexDirection: 'row', gap: 10, marginTop: 7 }, hint: { color: '#FFFFFF', fontWeight: '700', letterSpacing: 0 } });

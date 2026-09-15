@@ -12,10 +12,11 @@ const OPTIONS = [
   { id: 'break', label: 'Taking a Break', lines: 'TAKING\nA BREAK', icon: 'break' },
   { id: 'home', label: 'Going Home', lines: 'GOING\nHOME', icon: 'home' },
   { id: 'safe', label: "I'm Safe", lines: "I'M SAFE", icon: 'safe' },
-  { id: 'sos', label: 'SOS', lines: 'SOS', icon: 'sos' },
 ];
 
 const DISTANCES = [24, 18, 12, 7, 3, 0];
 const INTENSITIES = [0.35, 0.48, 0.62, 0.77, 0.9, 1];
 
-module.exports = { FRIENDS, OPTIONS, DISTANCES, INTENSITIES };
+const SOS_SIGNAL = { id: 'sos', label: 'SOS', lines: 'SOS', icon: 'sos' };
+
+module.exports = { FRIENDS, OPTIONS, SOS_SIGNAL, DISTANCES, INTENSITIES };

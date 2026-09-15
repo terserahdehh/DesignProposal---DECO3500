@@ -2,7 +2,7 @@
 
 PulseBand is a context-aware smart concert wristband prototype for **DECO3500 — Social & Mobile Computing**. The experience is designed to happen inside a wearable display, helping concertgoers stay connected to music, friends, accessibility features, and venue support without repeatedly checking a phone.
 
-The current prototype uses a code-built circular PulseBand body with a small rectangular display and three physical-style controls: Back, Next and OK. Four colour indicators around the body represent group awareness. The supplied `watch.png` is retained as an earlier concept asset but is not used by the application.
+The current prototype uses a code-built circular PulseBand body with a small rectangular display and four physical-style controls: Back, Next, OK and a red triangular SOS button below the display. Four colour indicators around the body represent group awareness. The supplied `watch.png` is retained as an earlier concept asset but is not used by the application.
 
 ## Run the prototype
 
@@ -13,6 +13,10 @@ npx expo start --web
 ```
 
 The browser shows only the band. Start at **Welcome, Nayaka**, touch the fingerprint or press OK to enter Pulse Festival, then explore live mode, haptic music, friends, quick signals, lyrics, venue cues, quiet space, accessibility settings, help and Live Context. The band buttons provide Back, Next and OK navigation while the rectangular screen provides direct prototype touch targets. The Live Context screen keeps the beat, Bluetooth link, crowd, proximity and incoming-signal simulations inside the band interface.
+
+## SOS confirmation
+
+Press the red triangular **SOS** button below the band display to open **Send SOS to group?**. Press the top **OK** button three separate times to send. The screen shows confirmation progress; **Back** or **Next** cancels and resets the count. SOS delivery is simulated and only includes connected friends.
 
 ## Prototype scope
 

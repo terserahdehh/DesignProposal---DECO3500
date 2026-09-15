@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { FRIENDS, OPTIONS, DISTANCES } from '../data/mockData';
+import { FRIENDS, OPTIONS, SOS_SIGNAL, DISTANCES } from '../data/mockData';
 import { THEME } from '../theme';
 import { connectedCount } from '../utils/simulation';
 import StatusBar from './StatusBar';
@@ -25,7 +25,7 @@ export default function BandScreen({ state, diameter, reduceMotion }) {
     content = <FindFriendScreen friend={selected} distance={DISTANCES[state.steps[selected.id]]} isTracking={state.view === 'tracking'} connected={state.connected[selected.id]} bluetooth={state.bluetooth} scale={scale} />;
   }
   if (['confirm', 'result', 'unavailable'].includes(state.view)) {
-    content = <ConfirmationScreen signal={OPTIONS.find(option => option.id === state.signalId) || OPTIONS[0]} result={state.view === 'result' ? state.result : null} unavailable={state.view === 'unavailable'} connected={count} scale={scale} />;
+    content = <ConfirmationScreen signal={state.signalId === 'sos' ? SOS_SIGNAL : OPTIONS.find(option => option.id === state.signalId) || OPTIONS[0]} sosConfirmations={state.sosConfirmations} result={state.view === 'result' ? state.result : null} unavailable={state.view === 'unavailable'} connected={count} scale={scale} />;
   }
   if (state.view === 'incoming') content = <IncomingMessageScreen friend={FRIENDS.find(item => item.id === state.incomingId)} scale={scale} />;
   return <View testID="band-screen" accessibilityLiveRegion="polite" style={[styles.screen, {

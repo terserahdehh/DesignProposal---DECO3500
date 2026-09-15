@@ -32,7 +32,7 @@ test('Next traverses every main option and returns home; Back reverses the cycle
   }
   assert.equal(press(state, 'next').view, 'home');
   state = press(createInitialState(), 'back');
-  assert.equal(OPTIONS[state.menuIndex].id, 'sos');
+  assert.equal(OPTIONS[state.menuIndex].id, 'safe');
   for (let i = 0; i < OPTIONS.length; i++) state = press(state, 'back');
   assert.equal(state.view, 'home');
 });
@@ -76,7 +76,7 @@ test('direction moves around the device without changing friend identity or dist
   }
 });
 
-for (const signal of ['toilet', 'break', 'home', 'safe', 'sos']) {
+for (const signal of ['toilet', 'break', 'home', 'safe']) {
   test(`${signal}: confirmation is required; Back/Next cancel; OK sends to four`, () => {
     const menu = chooseOption(signal);
     const confirmation = press(menu, 'ok');
@@ -116,7 +116,7 @@ test('incoming signals glow in the sender colour and restore the interrupted scr
 });
 
 test('repeated incoming messages preserve the original screen and do not send pending SOS', () => {
-  const confirmation = press(chooseOption('sos'), 'ok');
+  const confirmation = press(createInitialState(), 'sos');
   let state = simulationReducer(confirmation, { type: 'INCOMING', friendId: 'nayaka' });
   state = simulationReducer(state, { type: 'INCOMING', friendId: 'nala' });
   state = press(state, 'ok');
@@ -141,12 +141,12 @@ test('disconnected friend has no distance progression, active glow or incoming d
 });
 
 test('partial-group SOS reports only connected recipients; zero connections cannot send', () => {
-  let state = press(chooseOption('sos'), 'ok');
+  let state = press(createInitialState(), 'sos');
   state = simulationReducer(state, { type: 'CONNECTION', friendId: 'amy', connected: false });
-  let sent = press(state, 'ok');
+  let sent = press(press(press(state, 'ok'), 'ok'), 'ok');
   assert.deepEqual(sent.result.recipients, ['nayaka', 'syifa', 'nala']);
   for (const friend of FRIENDS) state = simulationReducer(state, { type: 'CONNECTION', friendId: friend.id, connected: false });
-  sent = press(state, 'ok');
+  sent = press(press(press(state, 'ok'), 'ok'), 'ok');
   assert.equal(sent.view, 'unavailable');
   assert.equal(sent.result, null);
   assert.equal(sent.feedback.type, null);
@@ -183,4 +183,35 @@ test('unsupported or blocked browser vibration cannot throw; haptics off suppres
   assert.equal(triggerHaptic('send', true, device), true);
   assert.equal(calls, 1);
   assert.doesNotThrow(() => cancelHaptic({ vibrate() { throw new Error('Unsupported'); } }));
+});
+
+test('SOS sends only on the third OK press and cancellation clears progress', () => {
+  for (const cancel of ['back', 'next']) {
+    let state = press(createInitialState(), 'sos');
+    assert.equal(state.view, 'confirm');
+    for (let count = 1; count <= 2; count++) {
+      state = press(state, 'ok');
+      assert.equal(state.sosConfirmations, count);
+      assert.equal(state.view, 'confirm');
+      assert.equal(state.result, null);
+      assert.equal(state.feedback.type, null);
+    }
+    const sent = press(state, 'ok');
+    assert.equal(sent.result.signalId, 'sos');
+    assert.equal(sent.result.recipients.length, 4);
+    assert.equal(sent.feedback.type, 'sos');
+    state = press(press(state, cancel), 'sos');
+    assert.equal(state.sosConfirmations, 0);
+    assert.equal(state.result, null);
+  }
+});
+
+test('incoming message dismissal does not count as SOS confirmation', () => {
+  let state = press(press(createInitialState(), 'sos'), 'ok');
+  state = simulationReducer(state, { type: 'INCOMING', friendId: 'nala' });
+  state = press(state, 'ok');
+  assert.equal(state.sosConfirmations, 1);
+  state = press(state, 'ok');
+  assert.equal(state.result, null);
+  assert.equal(press(state, 'ok').result.signalId, 'sos');
 });
