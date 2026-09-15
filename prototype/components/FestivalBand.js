@@ -26,7 +26,7 @@ export default function FestivalBand({ state, width, onButton, motion, feedbackV
           {Array.from({ length: 170 }, (_, i) => <View key={i} style={[styles.speckle, { left: `${(i * 43.17) % 100}%`, top: `${(i * 71.31) % 100}%` }]} />)}
         </View>
         <Text style={[styles.brand, { top: diameter * 0.087, fontSize: diameter * 0.02 }]}>P U L S E B A N D</Text>
-        <BandButtons diameter={diameter} onButton={onButton} />
+        <BandButtons diameter={diameter} onButton={onButton} reduceMotion={reduceMotion} />
         <BandScreen state={state} diameter={diameter} reduceMotion={reduceMotion} />
         <Text style={[styles.casingText, { bottom: diameter * 0.072, fontSize: diameter * 0.021 }]}>TOGETHER, FURTHER.</Text>
         {FRIENDS.map(friend => <FriendLight key={friend.id} friend={friend} diameter={diameter} direction={state.direction} connected={state.connected[friend.id]} {...lightForFriend(state, friend)} />)}

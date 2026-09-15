@@ -16,10 +16,18 @@ function HardwareButton({ name, diameter, onPress }) {
     </Pressable>
   </View>;
 }
-export default function BandButtons({ diameter, onButton }) {
+export default function BandButtons({ diameter, onButton, reduceMotion = false }) {
   const [sosFocused, setSosFocused] = useState(false);
-  const sosWidth = diameter * 0.17;
-  const sosHeight = diameter * 0.12;
+  const scale = diameter / 420;
+  const sosWidth = diameter * 0.15;
+  const sosHeight = sosWidth * (12 / 17);
+  // Keep the triangle clear of the display and casing text, with a larger touch target.
+  const sosTargetWidth = Math.max(44, sosWidth + 8 * scale);
+  const sosTargetHeight = Math.max(44, sosHeight + 8 * scale);
+  const sosFontSize = Math.max(8, diameter * 0.028);
+  const sosShadow = `drop-shadow(0 ${2 * scale}px 0 #8E1919) drop-shadow(0 ${4 * scale}px ${3 * scale}px rgba(0,0,0,0.22))`;
+  const sosPressedShadow = `drop-shadow(0 ${0.5 * scale}px 0 #8E1919) drop-shadow(0 ${scale}px ${1.5 * scale}px rgba(0,0,0,0.2))`;
+  const sosTransition = { transitionDuration: reduceMotion ? '0s' : '100ms' };
 
   return <>
     <View style={[styles.row, { top: diameter * 0.137, gap: diameter * 0.047 }]}>
@@ -33,36 +41,48 @@ export default function BandButtons({ diameter, onButton }) {
       onFocus={() => setSosFocused(true)}
       onBlur={() => setSosFocused(false)}
       onPress={() => onButton('sos')}
-      style={({ pressed }) => [
+      style={[
         styles.sosHitArea,
         {
-          top: diameter * 0.775,
-          left: (diameter - sosWidth) / 2,
-          width: sosWidth,
-          height: sosHeight,
+          top: diameter * 0.785 - (sosTargetHeight - sosHeight) / 2,
+          left: (diameter - sosTargetWidth) / 2,
+          width: sosTargetWidth,
+          height: sosTargetHeight,
         },
-        sosFocused && styles.sosFocused,
-        pressed && styles.sosPressed,
       ]}
     >
-      <View style={[
-        styles.sosTriangle,
-        {
-          borderLeftWidth: sosWidth / 2,
-          borderRightWidth: sosWidth / 2,
-          borderBottomWidth: sosHeight,
-        },
-      ]} />
-      <Text style={[styles.sosText, { bottom: sosHeight * 0.13, fontSize: diameter * 0.029 }]}>SOS</Text>
+      {({ pressed }) => <View pointerEvents="none" style={[
+        { width: sosWidth, height: sosHeight },
+        sosFocused && styles.sosFocused,
+      ]}>
+        <View style={[
+          styles.sosFace,
+          sosTransition,
+          { transform: [{ translateY: pressed ? 1.5 * scale : 0 }, { scale: pressed ? 0.97 : 1 }] },
+        ]}>
+          <View style={[
+            styles.sosTriangle,
+            sosTransition,
+            {
+              borderLeftWidth: sosWidth / 2,
+              borderRightWidth: sosWidth / 2,
+              borderBottomWidth: sosHeight,
+              borderBottomColor: pressed ? '#B71C1C' : '#C62828',
+              filter: pressed ? sosPressedShadow : sosShadow,
+            },
+          ]} />
+          <Text style={[styles.sosText, { bottom: sosHeight * 0.11, fontSize: sosFontSize, lineHeight: sosFontSize * 1.15, letterSpacing: 0.4 * scale }]}>SOS</Text>
+        </View>
+      </View>}
     </Pressable>
   </>;
 }
 const styles = StyleSheet.create({
-  sosHitArea: { position: 'absolute', zIndex: 3, alignItems: 'center', justifyContent: 'flex-end' },
-  sosTriangle: { position: 'absolute', bottom: 0, width: 0, height: 0, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#C62828', filter: 'drop-shadow(0 3px 1px #8E1919) drop-shadow(0 5px 4px rgba(0,0,0,0.24))' },
-  sosText: { position: 'absolute', color: '#FFFFFF', fontWeight: '900', letterSpacing: 0.5 },
-  sosFocused: { outlineColor: '#7335B6', outlineWidth: 3, outlineStyle: 'solid', outlineOffset: 3, borderRadius: 4 },
-  sosPressed: { transform: [{ translateY: 2 }], opacity: 0.82 },
+  sosHitArea: { position: 'absolute', zIndex: 3, alignItems: 'center', justifyContent: 'center', borderRadius: 4 },
+  sosFace: { width: '100%', height: '100%', alignItems: 'center', transitionProperty: 'transform', transitionTimingFunction: 'ease-out' },
+  sosTriangle: { position: 'absolute', bottom: 0, width: 0, height: 0, borderLeftColor: 'transparent', borderRightColor: 'transparent', transitionProperty: 'filter, border-bottom-color', transitionTimingFunction: 'ease-out' },
+  sosText: { position: 'absolute', color: '#FFFFFF', fontWeight: '900', textAlign: 'center' },
+  sosFocused: { outlineColor: '#7335B6', outlineWidth: 2, outlineStyle: 'solid', outlineOffset: 2, borderRadius: 4 },
   row: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end' },
   buttonGroup: { alignItems: 'center', gap: 6 },
   printLabel: { color: '#62655F', fontWeight: '800', letterSpacing: 1.2 },
