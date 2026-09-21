@@ -42,3 +42,10 @@ prototype/
 ```
 
 The initial Miro concept is available at [`prototype/static/Initial Idea.png`](prototype/static/Initial%20Idea.png).
+
+## Research findings
+
+Interviews, evaluations, usability testing, netnography, and secondary research
+are organised in [`research-findings/`](research-findings/). Start with the
+[research index](research-findings/README.md) for contributor folders and shared
+themes.
