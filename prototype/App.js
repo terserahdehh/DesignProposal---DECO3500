@@ -1,3 +1,4 @@
+// this is the app entry point that connects the interface, navigation, and simulation state.
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, Animated, AccessibilityInfo, Platform } from 'react-native';
 import { FRIENDS, OPTIONS } from './data/mockData';

@@ -1,3 +1,4 @@
+// this screen identifies an incoming quick signal and the friend who sent it.
 import React from 'react';
 import { View, Text } from 'react-native';
 import base from './screenStyles';

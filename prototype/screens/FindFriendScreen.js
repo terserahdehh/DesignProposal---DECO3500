@@ -1,3 +1,4 @@
+// this screen shows the selected friend's connection, distance, and compass direction.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';

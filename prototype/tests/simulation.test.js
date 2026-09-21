@@ -1,3 +1,4 @@
+// this suite checks navigation, friend tracking, signals, safety, and simulated device states.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { FRIENDS, OPTIONS, DISTANCES, INTENSITIES } = require('../data/mockData');

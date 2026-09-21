@@ -1,5 +1,4 @@
-// Reuses the existing prototype's group, arrival and alert vibration patterns.
-// Optional browser vibration. Every event also has visible feedback in App.js.
+// this utility safely maps prototype events to optional browser vibration patterns.
 const PATTERNS = {
   incoming: [45, 55, 45],
   send: [85],

@@ -1,3 +1,4 @@
+// this component displays the simulated bluetooth quality and battery level.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from './Icon';

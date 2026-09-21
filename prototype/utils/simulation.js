@@ -1,3 +1,4 @@
+// this reducer contains the band's navigation rules and all simulated interaction state.
 const { FRIENDS, OPTIONS, SOS_SIGNAL, DISTANCES, INTENSITIES } = require('../data/mockData');
 
 function createInitialState() {

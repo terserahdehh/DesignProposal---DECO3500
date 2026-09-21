@@ -1,4 +1,4 @@
-// Four simulated recipient bands. No real connection or location data is used.
+// this file defines the simulated friends, menu options, distances, and signal content.
 const FRIENDS = [
   { id: 'nayaka', name: 'Nayaka', colorName: 'Purple', color: '#A855F7', angle: -135, message: 'Taking a Break', lines: 'TAKING\nA BREAK', icon: 'break' },
   { id: 'amy', name: 'Amy', colorName: 'Red', color: '#EF4444', angle: -45, message: 'Going Home', lines: 'GOING\nHOME', icon: 'home' },

@@ -1,3 +1,4 @@
+// this component assembles the strap, casing, screen, buttons, and friend lights.
 import React from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { FRIENDS } from '../data/mockData';

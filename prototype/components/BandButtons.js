@@ -1,3 +1,4 @@
+// this component provides the band's back, ok, next, and emergency controls.
 import React, { useState } from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import Icon from './Icon';

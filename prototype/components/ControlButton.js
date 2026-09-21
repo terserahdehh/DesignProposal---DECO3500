@@ -1,3 +1,4 @@
+// this reusable button keeps the simulator controls visually and accessibly consistent.
 import React, { useState } from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { THEME } from '../theme';

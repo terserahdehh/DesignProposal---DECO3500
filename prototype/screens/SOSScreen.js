@@ -1,3 +1,4 @@
+// this screen presents the emergency signal before the protected send flow.
 import React from 'react';
 import { View, Text } from 'react-native';
 import Icon from '../components/Icon';

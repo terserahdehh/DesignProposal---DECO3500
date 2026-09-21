@@ -1,3 +1,4 @@
+// this screen presents a quick group signal before the shared confirmation flow.
 import React from 'react';
 import { View, Text } from 'react-native';
 import Icon from '../components/Icon';

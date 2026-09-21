@@ -1,3 +1,4 @@
+// this screen explains a pending signal and shows cancellation, progress, or delivery results.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from '../components/Icon';

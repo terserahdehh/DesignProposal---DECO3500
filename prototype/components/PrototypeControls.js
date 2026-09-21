@@ -1,3 +1,4 @@
+// this panel triggers simulated movement, messages, connections, battery, and haptics.
 import React from 'react';
 import { View, Text, StyleSheet, Switch } from 'react-native';
 import { FRIENDS, DISTANCES, INTENSITIES } from '../data/mockData';

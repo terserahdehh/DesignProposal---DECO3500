@@ -1,3 +1,4 @@
+// this screen welcomes the wearer and shows how many friends are connected.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from '../components/Icon';

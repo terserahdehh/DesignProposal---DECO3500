@@ -1,3 +1,4 @@
+// this component keeps the prototype's small vector icons in one local library.
 import React from 'react';
 import Svg, { Path, Circle, Rect, Line, Polyline } from 'react-native-svg';
 

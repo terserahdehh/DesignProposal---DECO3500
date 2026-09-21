@@ -1,3 +1,4 @@
+// this wrapper animates screen changes while respecting reduced-motion preferences.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet } from 'react-native';
 

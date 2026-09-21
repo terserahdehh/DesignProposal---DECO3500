@@ -1,3 +1,4 @@
+// this component selects and scales the correct screen for the current band state.
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FRIENDS, OPTIONS, SOS_SIGNAL, DISTANCES } from '../data/mockData';

@@ -1,3 +1,4 @@
+// this file shares typography and layout styles across the small band screens.
 import { StyleSheet } from 'react-native';
 
 export default StyleSheet.create({

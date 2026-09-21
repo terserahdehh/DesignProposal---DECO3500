@@ -1,3 +1,4 @@
+// this component shows each friend's direction and proximity on the band's outer ring.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
