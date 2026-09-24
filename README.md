@@ -18,7 +18,7 @@ The existing band, friend lights, Back/Next/OK controls, quick signals and SOS s
 
 ## Real Web Bluetooth
 
-Press **Connect Bluetooth** to open the browser permission/device chooser. Nothing connects automatically. The site must run over HTTPS (localhost also works). Select the physical band's owner using the manual test label; its real connection status appears on that friend's selection screen. This label does not authenticate a person. One physical peripheral can be connected at a time. Changing the label disconnects it.
+Select **I have a physical BLE device**, then press **Scan physical BLE devices** to open the browser permission/device chooser. Selecting **I am using two browser laptops / phones** explains why that setup cannot pair and does not open the chooser. Nothing connects automatically. The site must run over HTTPS (localhost also works). Select the physical band's owner using the manual test label; its real connection status appears on that friend's selection screen. This label does not authenticate a person. One physical peripheral can be connected at a time. Changing the label disconnects it.
 
 The separate hardware panel connects a compatible BLE GATT peripheral, subscribes to notifications, sends compact signal codes, and handles permission rejection, cancellation, connection failure and disconnection. Received notifications update that panel. A successful write means the peripheral accepted a GATT write, not that a friend received or read it. Hardware SOS has its own three-confirmation flow and is not an emergency service. Simulator controls never write to hardware; hardware notifications never become simulated messages.
 
@@ -35,7 +35,7 @@ No compatible firmware or physical hardware is included or was tested in this re
 | 5 | Meet Me |
 | 6 | SOS |
 
-The browser filters for this service, so arbitrary headphones and unprogrammed bands will not appear. Firmware must process writes and emit notifications; it must implement any forwarding to another band itself. Malformed or unknown notification codes are ignored. No sender identity or recipient address is embedded in this single-peripheral protocol.
+The chooser now shows discoverable BLE peripherals using `acceptAllDevices`, with the PulseBand service requested in `optionalServices`. This also finds peripherals that expose the service without advertising its UUID. Bluetooth Classic-only devices and browser pages still cannot appear. A BLE connection without the required PulseBand service/properties is reported as connected but incompatible, with signal controls unavailable. No writes are made to unrelated services. Firmware must process writes and emit notifications; it must implement any forwarding to another band itself. Malformed or unknown notification codes are ignored. No sender identity or recipient address is embedded in this single-peripheral protocol.
 
 ### Browser and phone limitations
 
@@ -45,6 +45,12 @@ Use a supported Chromium browser such as Chrome on Android, macOS, Windows or Ch
 
 Ordinary GATT connections do not expose continuous RSSI or a distance measurement. Experimental advertisement/scanning APIs are not a portable basis for this prototype. **Far, Nearby and Close**, glow intensity, compass direction, battery and group delivery are simulated. No real metre values or BLE bearing are claimed. BLE direction finding would require additional hardware and an exposed protocol; this implementation has neither.
 
+## Why the two MacBooks showed empty choosers
+
+Both Chrome pages were acting as BLE centrals (scanners); neither was advertising a GATT server. Choosing Nayaka or Nala is a local identity label, not Bluetooth registration. Turning on macOS Bluetooth or pairing the Macs in system settings does not turn the website into a BLE peripheral. The original service filter also hid devices that did not advertise the custom UUID; broad BLE discovery fixes that restriction, but cannot make browser peers discoverable.
+
+For the current browser-only MacBook setup, real inter-laptop Bluetooth messaging is **not supported**. Keep using the clearly labelled simulation until compatible hardware is available. An ESP32-S3 running the documented peripheral protocol can be a future hardware endpoint; firmware and band-to-band forwarding are not supplied here. A native macOS companion could implement a GATT peripheral and a local website bridge, but is a separate application, not a website patch, and is not included.
+
 ## Validation
 
 ```bash
@@ -53,7 +59,7 @@ npm test
 npm run build
 ```
 
-32 automated tests cover existing simulation behaviour plus support detection, permissions, connection/write failure, notifications, cancellation races, disconnects, identity persistence/switching, self-exclusion and separation of hardware from simulated movement. Hardware tests use injected GATT doubles: passing tests do not demonstrate a physical connection. Browser visual/mobile verification and physical-device acceptance testing remain necessary. To check manually: select each identity, refresh, switch users, cycle friends, try an unsupported browser, then connect compatible hardware, send each code, notify each code back, and turn off the peripheral. Verify the hardware status changes without moving simulated proximity/direction.
+38 automated tests cover existing simulation behaviour plus support detection, permissions, connection/write failure, notifications, cancellation races, disconnects, identity persistence/switching, self-exclusion and separation of hardware from simulated movement. Hardware tests use injected GATT doubles: passing tests do not demonstrate a physical connection. Browser visual/mobile verification and physical-device acceptance testing remain necessary. To check manually: select each identity, refresh, switch users, cycle friends, try an unsupported browser, then connect compatible hardware, send each code, notify each code back, and turn off the peripheral. Verify the hardware status changes without moving simulated proximity/direction.
 
 ## SOS confirmation
 
