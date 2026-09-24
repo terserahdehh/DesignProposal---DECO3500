@@ -72,3 +72,28 @@ test('malformed notifications ignored and failed writes reported without deliver
   assert.equal(await service.send('safe'), false);
   assert.match(service.getState().message, /could not be sent/);
 });
+test('discovery includes BLE peripherals even without advertised PulseBand UUID', async () => {
+  const { device } = fixture(); let options;
+  const service = createBluetoothService({ requestDevice: async value => { options = value; return device; } });
+  await service.connect();
+  assert.equal(options.acceptAllDevices, true);
+  assert.ok(options.optionalServices.includes(require('../utils/bluetooth').SERVICE));
+  assert.equal(service.getState().canSignal, true);
+});
+test('device lacking PulseBand service stays connected but cannot send signals', async () => {
+  const { device, service } = fixture();
+  device.gatt.connect = async () => { device.gatt.connected = true; return { getPrimaryService: async () => { throw Object.assign(Error(), { name: 'NotFoundError' }); } }; };
+  await service.connect();
+  assert.equal(service.getState().status, 'connected');
+  assert.equal(service.getState().canSignal, false);
+  assert.match(service.getState().message, /firmware/i);
+  assert.equal(await service.send('sos'), false);
+  device.gatt.disconnect(); assert.equal(service.getState().status, 'disconnected');
+});
+test('wrong characteristic properties do not enable signals', async () => {
+  const { service, characteristic } = fixture(); characteristic.properties.write = false;
+  await service.connect();
+  assert.equal(service.getState().status, 'connected');
+  assert.equal(service.getState().canSignal, false);
+  assert.equal(await service.send('safe'), false);
+});
