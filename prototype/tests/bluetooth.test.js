@@ -75,7 +75,7 @@ test('malformed notifications ignored and failed writes reported without deliver
 test('discovery includes BLE peripherals even without advertised PulseBand UUID', async () => {
   const { device } = fixture(); let options;
   const service = createBluetoothService({ requestDevice: async value => { options = value; return device; } });
-  await service.connect();
+  await service.connect({ allDevices: true });
   assert.equal(options.acceptAllDevices, true);
   assert.ok(options.optionalServices.includes(require('../utils/bluetooth').SERVICE));
   assert.equal(service.getState().canSignal, true);
@@ -96,4 +96,14 @@ test('wrong characteristic properties do not enable signals', async () => {
   assert.equal(service.getState().status, 'connected');
   assert.equal(service.getState().canSignal, false);
   assert.equal(await service.send('safe'), false);
+});
+
+test('default discovery filters clutter by PulseBand name or service', async () => {
+  const { device } = fixture(); device.id = 'stable-device'; let options;
+  const service = createBluetoothService({ requestDevice: async value => { options = value; return device; } });
+  await service.connect();
+  assert.ok(options.filters.some(filter => filter.namePrefix === 'PulseBand'));
+  assert.ok(options.filters.some(filter => filter.services?.includes(require('../utils/bluetooth').SERVICE)));
+  assert.equal(service.getState().deviceId, 'stable-device');
+  assert.equal(service.getState().deviceName, 'Test band');
 });
