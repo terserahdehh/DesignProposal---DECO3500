@@ -3,7 +3,7 @@ const SERVICE = 'b97b0001-7a62-4f1a-9b9c-0b13e9de3500';
 const CHARACTERISTIC = 'b97b0002-7a62-4f1a-9b9c-0b13e9de3500';
 const SIGNALS = { safe: 1, toilet: 2, break: 3, home: 4, meet: 5, sos: 6 };
 function createBluetoothService(api = globalThis.navigator?.bluetooth) {
-  let state = { status: api?.requestDevice ? 'idle' : 'unsupported', message: api?.requestDevice ? 'Ready to connect a physical band.' : 'Bluetooth unavailable here. Try Chrome on Android or a supported desktop browser.', deviceName: null, incoming: null, canSignal: false };
+  let state = { status: api?.requestDevice ? 'idle' : 'unsupported', message: api?.requestDevice ? 'Ready to connect a physical band.' : 'Bluetooth unavailable here. Try Chrome on Android or a supported desktop browser.', deviceName: null, deviceId: null, incoming: null, canSignal: false };
   let device, characteristic, generation = 0, busy = false;
   const listeners = new Set();
   const update = patch => { state = { ...state, ...patch }; listeners.forEach(fn => fn(state)); };
@@ -21,19 +21,20 @@ function createBluetoothService(api = globalThis.navigator?.bluetooth) {
   }
   function disconnected() {
     generation++; cleanup();
-    update({ status: 'disconnected', message: 'Band disconnected. Press Connect Bluetooth to reconnect.', incoming: null, canSignal: false });
+    update({ status: 'disconnected', message: 'Band disconnected. Press Find PulseBand device to reconnect.', incoming: null, canSignal: false });
   }
   return {
     getState: () => state,
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    async connect() {
+    async connect({ allDevices = false } = {}) {
       if (!api?.requestDevice || state.status === 'connecting' || state.status === 'connected') return;
       const attempt = ++generation;
       cleanup();
-      update({ status: 'connecting', message: 'Choose your physical BLE device. Browser laptops and identities will not appear.', deviceName: null, incoming: null, canSignal: false });
+      update({ status: 'connecting', message: 'Choose your physical BLE device. Browser laptops and identities will not appear.', deviceName: null, deviceId: null, incoming: null, canSignal: false });
       try {
         // Do not await anything before requestDevice: preserve the click activation.
-        const chosen = await api.requestDevice({ acceptAllDevices: true, optionalServices: [SERVICE] });
+        const discovery = allDevices ? { acceptAllDevices: true } : { filters: [{ namePrefix: 'PulseBand' }, { services: [SERVICE] }] };
+        const chosen = await api.requestDevice({ ...discovery, optionalServices: [SERVICE] });
         if (attempt !== generation) return;
         device = chosen;
         device.addEventListener('gattserverdisconnected', disconnected);
@@ -48,13 +49,13 @@ function createBluetoothService(api = globalThis.navigator?.bluetooth) {
         characteristic.addEventListener('characteristicvaluechanged', received);
         await characteristic.startNotifications();
         if (attempt !== generation) return;
-        update({ status: 'connected', deviceName: chosen.name || 'PulseBand', canSignal: true, message: 'Physical band connected. Signals use real Bluetooth.' });
+        update({ status: 'connected', deviceName: chosen.name || 'Unnamed PulseBand device', deviceId: chosen.id || null, canSignal: true, message: 'Physical band connected. Signals use real Bluetooth.' });
         } catch (error) {
           if (attempt !== generation) return;
           characteristic?.removeEventListener('characteristicvaluechanged', received);
           characteristic = null;
           if (!chosen.gatt.connected || !['NotFoundError', 'ProtocolError'].includes(error.name)) throw error;
-          update({ status: 'connected', deviceName: chosen.name || 'BLE device', canSignal: false, message: 'Bluetooth connected, but this device lacks compatible PulseBand firmware. Quick signals are unavailable. Install the documented service and write/notify characteristic on supported hardware.' });
+          update({ status: 'connected', deviceName: chosen.name || 'Unnamed BLE device', deviceId: chosen.id || null, canSignal: false, message: 'Bluetooth connected, but this device lacks compatible PulseBand firmware. Quick signals are unavailable. Install the documented service and write/notify characteristic on supported hardware.' });
         }
       } catch (error) {
         if (attempt !== generation) return;
