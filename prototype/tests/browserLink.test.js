@@ -70,3 +70,29 @@ test('missing acknowledgement and disconnect never claim delivery', async t => {
   pa.channel.onclose(); assert.equal(a.getState().status, 'disconnected');
   assert.equal(a.send('sos'), false);
 });
+test('cancelling during offer creation cannot restore stale pairing state', async () => {
+  let release;
+  class SlowPeer extends FakePeer { createOffer() { return new Promise(resolve => { release = () => resolve({ type: 'offer', sdp: 'slow' }); }); } }
+  const a = createBrowserLink('nayaka', 'Nayaka', { PeerConnection: SlowPeer });
+  const creation = a.createOffer(); a.disconnect(); release();
+  assert.equal(await creation, null);
+  assert.equal(a.getState().status, 'disconnected');
+  assert.equal(a.getState().code, '');
+});
+test('network failure expires without claiming a connection', async t => {
+  const a = make('nayaka');
+  const b = createBrowserLink('nala', 'Nala', { PeerConnection: FakePeer, connectTimeoutMs: 15 });
+  t.after(() => { a.disconnect(); b.disconnect(); });
+  await b.acceptOffer(await a.createOffer());
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(b.getState().status, 'error');
+  assert.match(b.getState().message, /relay/);
+});
+test('expired transport does not accept late signal acknowledgements', async t => {
+  const { a, pa } = await pair(t);
+  a.send('safe'); const id = pa.sent.id;
+  const staleHandler = pa.channel.onmessage;
+  a.disconnect(); staleHandler({ data: JSON.stringify({ type: 'ack', id }) });
+  assert.equal(a.getState().delivery, 'unconfirmed');
+  assert.equal(a.getState().status, 'disconnected');
+});

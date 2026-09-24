@@ -7,6 +7,7 @@ import { createInitialState, simulationReducer, connectedCount } from './utils/s
 import { triggerHaptic, cancelHaptic } from './utils/haptics';
 import FestivalBand from './components/FestivalBand';
 import PrototypeControls from './components/PrototypeControls';
+import BrowserPanel from './components/BrowserPanel';
 import BluetoothPanel from './components/BluetoothPanel';
 import ControlButton from './components/ControlButton';
 import { createBluetoothService } from './utils/bluetooth';
@@ -109,6 +110,7 @@ function PulseBandApp({ identity, onSwitch, storageWarning }) {
       <Text style={styles.intro}>Using PulseBand as {FRIENDS.find(f => f.id === identity).name}</Text>
       <ControlButton label="Switch user" onPress={onSwitch} />
       {storageWarning && <Text style={styles.note}>Storage unavailable. Select your identity again after refresh.</Text>}
+      <BrowserPanel identity={identity} />
       <BluetoothPanel service={service} hardware={hardware} friends={friendsFor(identity)} friendId={hardwareFriend} onFriend={setHardwareFriend} />
       <View style={[styles.workspace, !wide && styles.stacked]}>
         <View style={[styles.main, !wide && styles.mainStacked]}>
