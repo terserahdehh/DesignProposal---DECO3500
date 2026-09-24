@@ -16,9 +16,24 @@ First choose **Nayaka, Amy, Nala, or Syifa**. The identity is stored in this bro
 
 The existing band, friend lights, Back/Next/OK controls, quick signals and SOS simulation remain available without Bluetooth. Prototype controls still drive only the simulation.
 
+## Laptop-to-laptop connection on Vercel
+
+Use **Browser connection · Network** for real messages between two browser laptops. The large **YOUR VISIBLE DEVICE NAME** card has a **Rename device** button; names persist for each identity on this browser and propagate to the connected peer.
+
+1. On Nayaka's laptop, choose Nayaka, rename it if desired, then press **Create invitation**. Copy the entire code and share it privately with Nala using your usual messaging app.
+2. On Nala's laptop, choose Nala, paste Nayaka's invitation and press **Accept invitation & create reply**. Copy the generated reply and send it back.
+3. On Nayaka's laptop, paste Nala's reply and press **Finish connecting**. Wait for both pages to show **CONNECTED** with the other device's name.
+4. Use the signal buttons in that panel. The other browser updates its screen; **received** means its application acknowledged the signal, not that the wearer read it. SOS requires three confirmation presses after selecting Send SOS.
+
+This is a real encrypted WebRTC data channel over the network, **not Bluetooth**. It needs no camera/microphone permission or signalling backend; the two codes manually carry the SDP/ICE negotiation. One browser peer is supported at a time; switching identity, refreshing or disconnecting requires new codes. Pairing codes contain connection metadata and self-selected names, so share only with your intended peer; identities are not authenticated. No signal history or codes are stored. Acknowledgement timeout reports delivery as unconfirmed.
+
+A public Google STUN server is used for network address discovery. There is no TURN relay configured: restrictive NAT, university Wi-Fi/client isolation, VPNs or firewalls can prevent the connection. Try the same permissive Wi-Fi or a hotspot; this is not guaranteed to connect on every network. A production service would need a signalling backend, authenticated membership and TURN credentials. These must not be hard-coded into a static bundle. See [WebRTC peer connections](https://webrtc.org/getting-started/peer-connections) and [data channels](https://webrtc.org/getting-started/data-channels).
+
 ## Real Web Bluetooth
 
-Select **I have a physical BLE device**, then press **Scan physical BLE devices** to open the browser permission/device chooser. Selecting **I am using two browser laptops / phones** explains why that setup cannot pair and does not open the chooser. Nothing connects automatically. The site must run over HTTPS (localhost also works). Select the physical band's owner using the manual test label; its real connection status appears on that friend's selection screen. This label does not authenticate a person. One physical peripheral can be connected at a time. Changing the label disconnects it.
+Use **Physical band · Bluetooth**, then **Find PulseBand device** to open the permission/device chooser. The default scan matches a `PulseBand` name prefix OR the PulseBand service, reducing unknown-device clutter. **Scan all BLE devices** is an explicit fallback for other discoverable BLE peripherals. Nothing connects automatically. HTTPS (or localhost) is required. Select the physical band's owner using the manual local label; its connection status appears on that friend's selection screen. One physical peripheral can be connected at a time. Changing the owner label disconnects it.
+
+After selecting a device, its large **BLE DEVICE NICKNAME** card offers **Rename device**. This nickname is stored locally against the browser's Bluetooth device ID; the original advertised name remains visible underneath. It does **not** rename the device in Chrome's chooser or on another laptop. `BluetoothDevice.name` is [read-only](https://developer.mozilla.org/en-US/docs/Web/API/BluetoothDevice/name). To see **PulseBand-Nala** or **PulseBand-Nayaka** in the popup, configure that local advertised name in the ESP32 firmware (and include it in advertising/scan-response data); the website cannot change arbitrary peripheral advertising. Firmware is still a later hardware task.
 
 The separate hardware panel connects a compatible BLE GATT peripheral, subscribes to notifications, sends compact signal codes, and handles permission rejection, cancellation, connection failure and disconnection. Received notifications update that panel. A successful write means the peripheral accepted a GATT write, not that a friend received or read it. Hardware SOS has its own three-confirmation flow and is not an emergency service. Simulator controls never write to hardware; hardware notifications never become simulated messages.
 
@@ -35,11 +50,11 @@ No compatible firmware or physical hardware is included or was tested in this re
 | 5 | Meet Me |
 | 6 | SOS |
 
-The chooser now shows discoverable BLE peripherals using `acceptAllDevices`, with the PulseBand service requested in `optionalServices`. This also finds peripherals that expose the service without advertising its UUID. Bluetooth Classic-only devices and browser pages still cannot appear. A BLE connection without the required PulseBand service/properties is reported as connected but incompatible, with signal controls unavailable. No writes are made to unrelated services. Firmware must process writes and emit notifications; it must implement any forwarding to another band itself. Malformed or unknown notification codes are ignored. No sender identity or recipient address is embedded in this single-peripheral protocol.
+Both scan modes request the PulseBand service in `optionalServices`. The all-devices fallback uses `acceptAllDevices`, and can find peripherals exposing the service without advertising its UUID or a PulseBand name. Bluetooth Classic-only devices and browser pages still cannot appear. A BLE connection without the required PulseBand service/properties is reported as connected but incompatible, with signal controls unavailable. No writes are made to unrelated services. Firmware must process writes and emit notifications; it must implement any forwarding to another band itself. Malformed or unknown notification codes are ignored. No sender identity or recipient address is embedded in this single-peripheral protocol.
 
 ### Browser and phone limitations
 
-Web Bluetooth is a **GATT client/central** API. Browser pages cannot advertise as BLE peripherals or host GATT servers, so four phones opening this site cannot exchange BLE messages with each other. True phone-to-phone messaging requires a backend with authenticated group membership and a realtime channel (e.g. WebSocket), or native applications/peripheral hardware implementing BLE advertising, routing and delivery acknowledgements. Vercel HTTPS alone does not provide that transport.
+Web Bluetooth is a **GATT client/central** API. Browser pages cannot advertise as BLE peripherals or host GATT servers, so four phones opening this site cannot exchange BLE messages with each other. The separate Browser connection panel supplies WebRTC network messaging with manual pairing. BLE browser-to-browser transport would require native software/peripheral hardware implementing advertising and routing; Vercel HTTPS alone cannot provide that.
 
 Use a supported Chromium browser such as Chrome on Android, macOS, Windows or ChromeOS; hardware, OS permissions and browser policy also matter. Safari (including iPhone/iPad Safari) and Firefox do not support this standard flow; ordinary iOS browsers should not be assumed compatible. Feature detection provides a usable simulator fallback. See [Chrome's Web Bluetooth guide](https://developer.chrome.com/docs/capabilities/bluetooth) and [MDN compatibility and secure-context requirements](https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluetooth_API).
 
@@ -49,7 +64,7 @@ Ordinary GATT connections do not expose continuous RSSI or a distance measuremen
 
 Both Chrome pages were acting as BLE centrals (scanners); neither was advertising a GATT server. Choosing Nayaka or Nala is a local identity label, not Bluetooth registration. Turning on macOS Bluetooth or pairing the Macs in system settings does not turn the website into a BLE peripheral. The original service filter also hid devices that did not advertise the custom UUID; broad BLE discovery fixes that restriction, but cannot make browser peers discoverable.
 
-For the current browser-only MacBook setup, real inter-laptop Bluetooth messaging is **not supported**. Keep using the clearly labelled simulation until compatible hardware is available. An ESP32-S3 running the documented peripheral protocol can be a future hardware endpoint; firmware and band-to-band forwarding are not supplied here. A native macOS companion could implement a GATT peripheral and a local website bridge, but is a separate application, not a website patch, and is not included.
+For the current browser-only MacBook setup, real inter-laptop Bluetooth messaging is **not supported**. Use the Browser connection panel for real network messaging now, and the physical BLE panel when compatible hardware is available. An ESP32-S3 running the documented peripheral protocol can be a future hardware endpoint; firmware and band-to-band forwarding are not supplied here. A native macOS companion could implement a GATT peripheral and a local website bridge, but is a separate application, not a website patch, and is not included.
 
 ## Validation
 
@@ -59,7 +74,9 @@ npm test
 npm run build
 ```
 
-38 automated tests cover existing simulation behaviour plus support detection, permissions, connection/write failure, notifications, cancellation races, disconnects, identity persistence/switching, self-exclusion and separation of hardware from simulated movement. Hardware tests use injected GATT doubles: passing tests do not demonstrate a physical connection. Browser visual/mobile verification and physical-device acceptance testing remain necessary. To check manually: select each identity, refresh, switch users, cycle friends, try an unsupported browser, then connect compatible hardware, send each code, notify each code back, and turn off the peripheral. Verify the hardware status changes without moving simulated proximity/direction.
+The tests cover simulation, BLE discovery/capabilities/errors, persistent names and identities, WebRTC pairing/validation/cancellation, acknowledgements, and disconnects. `browserLink.integration.test.js` uses the development-only Werift implementation to establish two real ICE/DTLS/SCTP peers over local UDP and exchange all six signals both ways, rename a peer and disconnect. Socket access is required to run that integration test. Werift is not bundled in the website.
+
+BLE tests use injected GATT doubles. There has been no live peripheral test or two-physical-MacBook browser verification in this environment. To validate your deployment: follow the three-step invitation/reply flow on two laptops, send signals in both directions, rename a browser, disconnect, then independently connect compatible BLE hardware and verify the advertised name, local nickname, notifications and disconnect status. All proximity, compass direction, band controls and group deliveries in the simulator remain simulated and independent of both real transports.
 
 ## SOS confirmation
 
