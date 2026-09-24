@@ -7,6 +7,10 @@ import { createInitialState, simulationReducer, connectedCount } from './utils/s
 import { triggerHaptic, cancelHaptic } from './utils/haptics';
 import FestivalBand from './components/FestivalBand';
 import PrototypeControls from './components/PrototypeControls';
+import BluetoothPanel from './components/BluetoothPanel';
+import ControlButton from './components/ControlButton';
+import { createBluetoothService } from './utils/bluetooth';
+import { readIdentity, saveIdentity, friendsFor } from './utils/identity';
 import Icon from './components/Icon';
 
 const FEEDBACK_LABELS = { incoming: 'Incoming message · short pulse', send: 'Message sent · short pulse', nearby: 'Friend very near · gentle pulse', sos: 'Group SOS · alert pulse' };
@@ -35,7 +39,23 @@ function screenDescription(state) {
 }
 
 export default function App() {
-  const [state, dispatch] = useReducer(simulationReducer, undefined, createInitialState);
+  const [identity, setIdentity] = useState(readIdentity);
+  const [choosing, setChoosing] = useState(false);
+  const [storageWarning, setStorageWarning] = useState(false);
+  if (!identity || choosing) return <ScrollView style={styles.page} contentContainerStyle={{ padding: 24, gap: 14, maxWidth: 500, width: '100%', alignSelf: 'center' }}>
+    <Text style={styles.heading}>Who is wearing PulseBand?</Text>
+    <Text style={styles.intro}>Choose one person for this phone. This is a local testing identity.</Text>
+    {['nayaka', 'amy', 'nala', 'syifa'].map(id => <ControlButton key={id} label={FRIENDS.find(f => f.id === id).name} onPress={() => { setStorageWarning(!saveIdentity(id)); setIdentity(id); setChoosing(false); }} />)}
+  </ScrollView>;
+  return <PulseBandApp key={identity} identity={identity} storageWarning={storageWarning} onSwitch={() => setChoosing(true)} />;
+}
+
+function PulseBandApp({ identity, onSwitch, storageWarning }) {
+  const [state, dispatch] = useReducer(simulationReducer, identity, createInitialState);
+  const [service] = useState(() => createBluetoothService());
+  const [hardwareFriend, setHardwareFriend] = useState(friendsFor(identity)[0].id);
+  const [hardware, setHardware] = useState(service.getState);
+  useEffect(() => { const unsubscribe = service.subscribe(setHardware); return () => { unsubscribe(); service.disconnect(); }; }, [service]);
   const { width } = useWindowDimensions();
   const [stageWidth, setStageWidth] = useState(650);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -86,6 +106,10 @@ export default function App() {
         <View style={styles.headerMeta}><Text style={styles.course}>DECO3500</Text><Text style={styles.version}>INTERACTIVE PROTOTYPE / 01</Text></View>
       </View>
 
+      <Text style={styles.intro}>Using PulseBand as {FRIENDS.find(f => f.id === identity).name}</Text>
+      <ControlButton label="Switch user" onPress={onSwitch} />
+      {storageWarning && <Text style={styles.note}>Storage unavailable. Select your identity again after refresh.</Text>}
+      <BluetoothPanel service={service} hardware={hardware} friends={friendsFor(identity)} friendId={hardwareFriend} onFriend={setHardwareFriend} />
       <View style={[styles.workspace, !wide && styles.stacked]}>
         <View style={[styles.main, !wide && styles.mainStacked]}>
           <View style={styles.mainHeading}>
@@ -97,34 +121,34 @@ export default function App() {
           <View style={styles.simulator}>
             <View style={styles.simulatorTop}><Text style={styles.smallCaps}>LIVE BAND SIMULATION</Text><Text style={styles.screenName}>{screenDescription(state)}</Text></View>
             <View style={styles.bandArea} onLayout={event => setStageWidth(event.nativeEvent.layout.width)}>
-              <FestivalBand state={state} width={stageWidth} onButton={button => dispatch({ type: 'BUTTON', button })} motion={motion} feedbackVisible={feedbackVisible} reduceMotion={reduceMotion} />
+              <FestivalBand hardware={hardware} hardwareFriend={hardwareFriend} state={state} width={stageWidth} onButton={button => dispatch({ type: 'BUTTON', button })} motion={motion} feedbackVisible={feedbackVisible} reduceMotion={reduceMotion} />
             </View>
             <View style={styles.hintRow}>
               {['BACK', 'OK', 'NEXT'].map((name, i) => <View key={name} style={styles.hintItem}><Text style={styles.hintKey}>{i === 0 ? '◀  BACK' : i === 2 ? 'NEXT  ▶' : 'OK'}</Text><Text style={styles.hintText}>{hints[i]}</Text></View>)}
             </View>
             <View style={styles.feedbackRow} accessibilityLiveRegion="polite">
               <Icon name={feedbackVisible ? 'pulse' : 'bluetooth'} size={16} color={state.event.kind === 'sos' ? '#FCA5A5' : THEME.accent} />
-              <Text style={styles.feedbackText}>{feedbackVisible ? `${FEEDBACK_LABELS[state.feedback.type]} · ${!state.hapticsEnabled ? 'haptics off · visual cue' : hapticDelivered ? 'vibration requested' : 'haptic simulated'}` : `BLUETOOTH ${state.bluetooth.toUpperCase()} · ${count} CONNECTED`}</Text>
+              <Text style={styles.feedbackText}>{feedbackVisible ? `${FEEDBACK_LABELS[state.feedback.type]} · ${!state.hapticsEnabled ? 'haptics off · visual cue' : hapticDelivered ? 'vibration requested' : 'haptic simulated'}` : `SIMULATED LINK ${state.bluetooth.toUpperCase()} · ${count} CONNECTED`}</Text>
             </View>
           </View>
 
           <View style={styles.circle}>
-            <View style={styles.circleHeader}><Text style={styles.circleTitle}>Your festival circle</Text><Text style={styles.circleCount}>{count} of 4 connected</Text></View>
+            <View style={styles.circleHeader}><Text style={styles.circleTitle}>Your festival circle</Text><Text style={styles.circleCount}>{count} of 3 simulated</Text></View>
             <View style={styles.friendLegend}>
-              {FRIENDS.map(friend => <View key={friend.id} style={styles.legendItem} accessibilityLabel={`${friend.name}, ${friend.colorName}, ${state.connected[friend.id] ? 'connected' : 'disconnected'}`}>
+              {friendsFor(identity).map(friend => <View key={friend.id} style={styles.legendItem} accessibilityLabel={`${friend.name}, ${friend.colorName}, ${state.connected[friend.id] ? 'connected' : 'disconnected'}`}>
                 <View style={[styles.legendDot, { backgroundColor: friend.color, opacity: state.connected[friend.id] ? 1 : 0.3, boxShadow: `0 0 12px ${friend.color}55` }]} />
                 <Text style={styles.friendName}>{friend.name}</Text><Text style={[styles.friendColor, { color: friend.color }]}>{friend.colorName}</Text>
                 {!state.connected[friend.id] && <Text style={styles.offline}>Offline</Text>}
               </View>)}
             </View>
-            <Text style={styles.circleNote}>Follow the coloured light. It grows brighter as you get closer.</Text>
+            <Text style={styles.circleNote}>Simulated friend lights, proximity and direction. Physical device status is shown above.</Text>
           </View>
 
           <View testID="demo-feedback" accessibilityLiveRegion="polite" style={[styles.event, state.event.kind === 'sos' && styles.alertEvent]}>
             <Icon name={state.event.kind === 'sos' || state.event.kind === 'warning' ? 'sos' : state.event.kind === 'success' ? 'check' : 'message'} size={19} color={state.event.kind === 'sos' ? '#FCA5A5' : '#C7B2DB'} />
             <Text style={styles.eventText}>{state.event.text}</Text>
           </View>
-          <Text style={styles.note}>Digital proof-of-concept. Bluetooth, distance, battery and group messages are simulated. SOS alerts the connected group in this demo.</Text>
+          <Text style={styles.note}>Digital proof-of-concept. Band controls, proximity, direction, battery and group messages below are simulated. Physical Bluetooth signals use the separate panel above. SOS alerts the connected group in this demo.</Text>
         </View>
 
         <View style={[styles.controlsColumn, !wide && styles.controlsStacked]}><PrototypeControls state={state} dispatch={dispatch} /></View>

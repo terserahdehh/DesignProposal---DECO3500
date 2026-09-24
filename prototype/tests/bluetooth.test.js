@@ -53,3 +53,22 @@ test('simulated movement and reset cannot change hardware state', async () => {
   assert.equal(state.direction, 0); assert.equal('direction' in before, false);
   assert.equal('distance' in before, false);
 });
+test('late connection after cancellation closes the peripheral', async () => {
+  const { service, device } = fixture();
+  let finish;
+  device.gatt.connect = () => new Promise(resolve => { finish = () => { device.gatt.connected = true; resolve({}); }; });
+  const pending = service.connect();
+  await Promise.resolve();
+  service.disconnect(); finish(); await pending;
+  assert.equal(device.gatt.connected, false);
+  assert.equal(service.getState().status, 'disconnected');
+});
+test('malformed notifications ignored and failed writes reported without delivery', async () => {
+  const { service, characteristic } = fixture(); await service.connect();
+  characteristic.value = new DataView(Uint8Array.of(255).buffer);
+  characteristic.dispatchEvent(new Event('characteristicvaluechanged'));
+  assert.equal(service.getState().incoming, null);
+  characteristic.writeValueWithResponse = async () => { throw Error(); };
+  assert.equal(await service.send('safe'), false);
+  assert.match(service.getState().message, /could not be sent/);
+});

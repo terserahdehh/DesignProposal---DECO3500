@@ -8,7 +8,7 @@ import FriendLight from './FriendLight';
 import BandButtons from './BandButtons';
 import BandScreen from './BandScreen';
 
-export default function FestivalBand({ state, width, onButton, motion, feedbackVisible, reduceMotion }) {
+export default function FestivalBand({ state, hardware, hardwareFriend, width, onButton, motion, feedbackVisible, reduceMotion }) {
   const diameter = Math.min(430, Math.max(220, width - 30));
   const strapWidth = Math.min(width - 10, diameter * 1.54);
   const sos = state.view === 'result' && state.result?.signalId === 'sos';
@@ -28,7 +28,7 @@ export default function FestivalBand({ state, width, onButton, motion, feedbackV
         </View>
         <Text style={[styles.brand, { top: diameter * 0.087, fontSize: diameter * 0.02 }]}>P U L S E B A N D</Text>
         <BandButtons diameter={diameter} onButton={onButton} reduceMotion={reduceMotion} />
-        <BandScreen state={state} diameter={diameter} reduceMotion={reduceMotion} />
+        <BandScreen hardware={hardware} hardwareFriend={hardwareFriend} state={state} diameter={diameter} reduceMotion={reduceMotion} />
         <Text style={[styles.casingText, { bottom: diameter * 0.072, fontSize: diameter * 0.021 }]}>TOGETHER, FURTHER.</Text>
         {/* Compass guide track — subtle ring the friend markers sit on */}
         <View pointerEvents="none" style={[styles.compassTrack, {

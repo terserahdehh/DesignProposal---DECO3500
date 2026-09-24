@@ -1,10 +1,13 @@
 // this reducer contains the band's navigation rules and all simulated interaction state.
 const { FRIENDS, OPTIONS, SOS_SIGNAL, DISTANCES, INTENSITIES } = require('../data/mockData');
 
-function createInitialState() {
+const { friendsFor } = require('./identity');
+
+function createInitialState(identity = null) {
+  const first = friendsFor(identity)[0].id;
   return {
-    view: 'home', menuIndex: 0, friendIndex: 0, targetId: 'nayaka', controlFriendId: 'nayaka', signalId: null, sosConfirmations: 0,
-    connected: Object.fromEntries(FRIENDS.map(friend => [friend.id, true])),
+    identity, view: 'home', menuIndex: 0, friendIndex: 0, targetId: first, controlFriendId: first, signalId: null, sosConfirmations: 0,
+    connected: Object.fromEntries(FRIENDS.map(friend => [friend.id, friend.id !== identity])),
     steps: Object.fromEntries(FRIENDS.map(friend => [friend.id, 0])),
     direction: 0, bluetooth: 'good', battery: 86, hapticsEnabled: true,
     incomingId: null, resume: null, result: null,
@@ -33,6 +36,7 @@ function dismissOverlay(state) {
 }
 
 function navigate(state, button) {
+  const FRIENDS = friendsFor(state.identity);
   if (button === 'sos') {
     if (state.view === 'confirm' && state.signalId === 'sos') return state;
     return { ...state, view: 'confirm', signalId: 'sos', sosConfirmations: 0, result: null, incomingId: null, resume: null };
@@ -114,12 +118,12 @@ function simulationReducer(state, action) {
       const distance = DISTANCES[next];
       return notify({ ...state, steps: { ...state.steps, [state.targetId]: next } },
         distance === 0 ? `${friend.name} is nearby. ${friend.colorName} light at full glow.`
-          : `${friend.name} is ${distance} m away. ${friend.colorName} glow is brighter.`,
+          : `${friend.name}: simulated ${distance <= 3 ? "Close" : distance <= 12 ? "Nearby" : "Far"}. ${friend.colorName} glow is brighter.`,
         distance === 0 ? 'success' : 'info', next !== current && distance <= 3 ? 'nearby' : null);
     }
     case 'RESET_FRIEND': {
       const friend = FRIENDS.find(item => item.id === state.targetId);
-      return notify({ ...state, steps: { ...state.steps, [state.targetId]: 0 }, direction: 0 }, `${friend.name} reset to 24 m and the starting light position.`);
+      return notify({ ...state, steps: { ...state.steps, [state.targetId]: 0 }, direction: 0 }, `${friend.name} reset to simulated Far and the starting light position.`);
     }
     case 'MOVE_DIRECTION':
       return notify({ ...state, direction: (state.direction + 45) % 360 }, 'Simulated direction moved one step around the light ring.');
@@ -129,15 +133,15 @@ function simulationReducer(state, action) {
         : state;
     case 'CONNECTION': {
       const friend = FRIENDS.find(item => item.id === action.friendId);
-      if (!friend) return state;
+      if (!friend || friend.id === state.identity) return state;
       return notify({ ...state, connected: { ...state.connected, [friend.id]: action.connected } },
         `${friend.name} ${action.connected ? 'reconnected' : 'disconnected'} in the simulation.`, action.connected ? 'success' : 'warning');
     }
     case 'CONTROL_FRIEND':
-      return FRIENDS.some(friend => friend.id === action.friendId) ? { ...state, controlFriendId: action.friendId } : state;
+      return friendsFor(state.identity).some(friend => friend.id === action.friendId) ? { ...state, controlFriendId: action.friendId } : state;
     case 'INCOMING': {
       const friend = FRIENDS.find(item => item.id === action.friendId);
-      if (!friend) return state;
+      if (!friend || friend.id === state.identity) return state;
       if (!state.connected[friend.id]) return notify(state, `Reconnect ${friend.name} before triggering their message.`, 'warning');
       const resume = state.view === 'incoming' ? state.resume : {
         view: state.view, menuIndex: state.menuIndex, friendIndex: state.friendIndex,
@@ -151,9 +155,9 @@ function simulationReducer(state, action) {
     case 'HAPTICS':
       return notify({ ...state, hapticsEnabled: Boolean(action.enabled) }, action.enabled ? 'Haptics on. Visual feedback is always available.' : 'Haptics off. Visual feedback stays on.');
     case 'RESET': {
-      const fresh = createInitialState();
+      const fresh = createInitialState(state.identity);
       // Keep event IDs monotonic so resetting also clears old feedback timers.
-      return { ...fresh, event: { id: state.event.id + 1, text: 'Demo reset. All four friends connected.', kind: 'info' }, feedback: { id: state.feedback.id + 1, type: null } };
+      return { ...fresh, event: { id: state.event.id + 1, text: 'Demo reset. Simulated friends connected.', kind: 'info' }, feedback: { id: state.feedback.id + 1, type: null } };
     }
     default:
       return state;
@@ -174,7 +178,7 @@ function lightForFriend(state, friend) {
     return { intensity: active ? INTENSITIES[state.steps[friend.id]] : 0.06, active };
   }
   if (state.view === 'friends') {
-    const active = FRIENDS[state.friendIndex].id === friend.id;
+    const active = friendsFor(state.identity)[state.friendIndex].id === friend.id;
     return { intensity: active ? 0.5 : 0.1, active };
   }
   return { intensity: 0.25, active: false };

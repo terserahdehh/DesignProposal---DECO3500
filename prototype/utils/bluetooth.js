@@ -37,7 +37,8 @@ function createBluetoothService(api = globalThis.navigator?.bluetooth) {
         if (attempt !== generation) return;
         device = chosen;
         device.addEventListener('gattserverdisconnected', disconnected);
-        const server = await device.gatt.connect();
+        const server = await chosen.gatt.connect();
+        if (attempt !== generation) { if (chosen.gatt.connected) chosen.gatt.disconnect(); return; }
         const service = await server.getPrimaryService(SERVICE);
         const channel = await service.getCharacteristic(CHARACTERISTIC);
         if (attempt !== generation) return;

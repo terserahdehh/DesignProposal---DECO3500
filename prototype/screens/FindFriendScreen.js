@@ -24,21 +24,21 @@ function DirectionArrow({ friend, direction, distance, connected, scale }) {
   </View>;
 }
 
-export default function FindFriendScreen({ friend, distance, isTracking, connected, bluetooth, direction = 0, scale }) {
+export default function FindFriendScreen({ friend, hardwareStatus, distance, isTracking, connected, bluetooth, direction = 0, scale }) {
   if (!isTracking) return <View style={base.center}>
     <Text style={[base.title, { fontSize: 25 * scale }]}>{friend.name.toUpperCase()}</Text>
     <Text style={[base.secondary, { fontSize: 15 * scale }]}>{friend.colorName.toUpperCase()}</Text>
-    <Text style={[base.secondary, { fontSize: 13 * scale, marginTop: 6 }]}>{connected ? 'OK TO FIND' : 'DISCONNECTED'}</Text>
+    <Text style={[base.secondary, { fontSize: 13 * scale, marginTop: 6 }]}>{hardwareStatus ? `BLE: ${hardwareStatus.toUpperCase()}` : 'SIMULATED FRIEND'}</Text>
   </View>;
 
-  let status = !connected ? 'DISCONNECTED' : distance === 0 ? 'FRIEND NEARBY' : bluetooth === 'weak' ? 'BLUETOOTH WEAK' : 'FINDING...';
+  let status = !connected ? 'DISCONNECTED' : distance === 0 ? 'FRIEND NEARBY' : bluetooth === 'weak' ? 'LINK WEAK' : 'FINDING...';
   return <View style={base.center}>
     <Text style={[base.label, { fontSize: 17 * scale }]}>{friend.name.toUpperCase()}</Text>
     <View style={styles.trackingRow}>
       <DirectionArrow friend={friend} direction={direction} distance={distance} connected={connected} scale={scale} />
-      <Text style={[base.number, { fontSize: (distance === 0 && connected ? 29 : 38) * scale, lineHeight: 42 * scale }]}>{!connected ? '—' : distance === 0 ? 'NEARBY' : `${distance} m`}</Text>
+      <Text style={[base.number, { fontSize: (distance === 0 && connected ? 29 : 38) * scale, lineHeight: 42 * scale }]}>{!connected ? '—' : distance <= 3 ? 'CLOSE' : distance <= 12 ? 'NEARBY' : 'FAR'}</Text>
     </View>
-    <Text style={[base.secondary, { fontSize: 13 * scale }]}>{status}</Text>
+    <Text style={[base.secondary, { fontSize: 13 * scale }]}>{`SIM · ${status}`}</Text>
   </View>;
 }
 

@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Switch } from 'react-native';
 import { FRIENDS, DISTANCES, INTENSITIES } from '../data/mockData';
 import { THEME } from '../theme';
+import { friendsFor } from '../utils/identity';
 import ControlButton from './ControlButton';
 
 function SectionHeading({ index, children }) {
@@ -23,15 +24,15 @@ export default function PrototypeControls({ state, dispatch }) {
     </View>
 
     <View style={styles.section}>
-      <SectionHeading index="01">FRIEND FINDING</SectionHeading>
+      <SectionHeading index="01">SIMULATED FINDING</SectionHeading>
       <View style={styles.targetRow}>
         <View style={styles.person}><View style={[styles.dot, { backgroundColor: target.color }]} /><Text style={styles.target}>{target.name}</Text><Text style={styles.colorName}>{target.colorName}</Text></View>
-        <Text style={styles.meters}>{DISTANCES[step] === 0 ? 'Nearby' : `${DISTANCES[step]} m`}</Text>
+        <Text style={styles.meters}>{step >= 4 ? 'Close' : step >= 2 ? 'Nearby' : 'Far'}</Text>
       </View>
       <View style={styles.proximity} accessibilityLabel={`Proximity step ${step + 1} of 6. ${Math.round(INTENSITIES[step] * 100)} percent glow when finding.`}>
         {DISTANCES.map((distance, i) => <View key={i} style={styles.proximityItem}>
           <View style={[styles.bar, { backgroundColor: i <= step ? target.color : '#26374E', opacity: i <= step ? 0.55 + i * 0.09 : 1 }]} />
-          <Text style={[styles.stepLabel, i === step && styles.stepActive]}>{distance === 0 ? 'Near' : `${distance}m`}</Text>
+          <Text style={[styles.stepLabel, i === step && styles.stepActive]}>{i >= 4 ? 'Close' : i >= 2 ? 'Near' : 'Far'}</Text>
         </View>)}
       </View>
       <Text style={styles.helper}>{!finding ? 'Use OK on the band to open Find Friend.' : !state.connected[target.id] ? `${target.name} is disconnected. Reconnect below.` : `External ${target.colorName.toLowerCase()} light · ${Math.round(INTENSITIES[step] * 100)}% glow`}</Text>
@@ -45,7 +46,7 @@ export default function PrototypeControls({ state, dispatch }) {
     <View style={styles.section}>
       <SectionHeading index="02">INCOMING SIGNALS</SectionHeading>
       <View style={styles.messageGrid}>
-        {FRIENDS.map(friend => <ControlButton key={friend.id} accessibilityLabel={`Trigger ${friend.name} Message`} style={styles.messageButton} onPress={() => dispatch({ type: 'INCOMING', friendId: friend.id })}>
+        {friendsFor(state.identity).map(friend => <ControlButton key={friend.id} accessibilityLabel={`Trigger ${friend.name} Message`} style={styles.messageButton} onPress={() => dispatch({ type: 'INCOMING', friendId: friend.id })}>
           <View style={styles.messageContent}>
             <View style={styles.person}><View style={[styles.dot, { backgroundColor: friend.color }]} /><Text style={styles.messageName}>{friend.name}</Text></View>
             <Text style={styles.messageText}>{friend.message}</Text>
@@ -62,7 +63,7 @@ export default function PrototypeControls({ state, dispatch }) {
       </View>
       <Text style={[styles.helper, { marginTop: 3 }]}>Choose a band to disconnect or reconnect</Text>
       <View style={styles.friendPicker}>
-        {FRIENDS.map(friend => <ControlButton key={friend.id} label={friend.name} accessibilityLabel={`Connection target ${friend.name}`} selected={state.controlFriendId === friend.id} style={styles.friendChip} onPress={() => dispatch({ type: 'CONTROL_FRIEND', friendId: friend.id })} />)}
+        {friendsFor(state.identity).map(friend => <ControlButton key={friend.id} label={friend.name} accessibilityLabel={`Connection target ${friend.name}`} selected={state.controlFriendId === friend.id} style={styles.friendChip} onPress={() => dispatch({ type: 'CONTROL_FRIEND', friendId: friend.id })} />)}
       </View>
       <Text style={styles.connectionLabel}>{connectionTarget.name} · {state.connected[connectionTarget.id] ? 'Connected' : 'Disconnected'}</Text>
       <View style={styles.row}>

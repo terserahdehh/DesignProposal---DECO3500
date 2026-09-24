@@ -4,6 +4,7 @@ import { View, StyleSheet } from 'react-native';
 import { FRIENDS, OPTIONS, SOS_SIGNAL, DISTANCES } from '../data/mockData';
 import { THEME } from '../theme';
 import { connectedCount } from '../utils/simulation';
+import { friendsFor } from '../utils/identity';
 import StatusBar from './StatusBar';
 import ScreenTransition from './ScreenTransition';
 import HomeScreen from '../screens/HomeScreen';
@@ -12,7 +13,7 @@ import FindFriendScreen from '../screens/FindFriendScreen';
 import ConfirmationScreen from '../screens/ConfirmationScreen';
 import IncomingMessageScreen from '../screens/IncomingMessageScreen';
 
-export default function BandScreen({ state, diameter, reduceMotion }) {
+export default function BandScreen({ state, hardware, hardwareFriend, diameter, reduceMotion }) {
   // Lay out text at one logical size, then scale the whole LCD, including line heights.
   const displayScale = diameter / 420;
   const scale = 1;
@@ -22,8 +23,8 @@ export default function BandScreen({ state, diameter, reduceMotion }) {
   if (state.view === 'home') content = <HomeScreen connected={count} scale={scale} />;
   if (state.view === 'menu') content = <MenuScreen option={OPTIONS[state.menuIndex]} index={state.menuIndex} scale={scale} />;
   if (state.view === 'friends' || state.view === 'tracking') {
-    const selected = state.view === 'friends' ? FRIENDS[state.friendIndex] : friend;
-    content = <FindFriendScreen friend={selected} distance={DISTANCES[state.steps[selected.id]]} isTracking={state.view === 'tracking'} connected={state.connected[selected.id]} bluetooth={state.bluetooth} direction={state.direction} scale={scale} />;
+    const selected = state.view === 'friends' ? friendsFor(state.identity)[state.friendIndex] : friend;
+    content = <FindFriendScreen hardwareStatus={selected.id === hardwareFriend ? hardware?.status : null} friend={selected} distance={DISTANCES[state.steps[selected.id]]} isTracking={state.view === 'tracking'} connected={state.connected[selected.id]} bluetooth={state.bluetooth} direction={state.direction} scale={scale} />;
   }
   if (['confirm', 'result', 'unavailable'].includes(state.view)) {
     content = <ConfirmationScreen signal={state.signalId === 'sos' ? SOS_SIGNAL : OPTIONS.find(option => option.id === state.signalId) || OPTIONS[0]} sosConfirmations={state.sosConfirmations} result={state.view === 'result' ? state.result : null} unavailable={state.view === 'unavailable'} connected={count} scale={scale} />;
