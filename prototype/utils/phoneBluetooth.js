@@ -27,6 +27,15 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
     generation++; cleanup();
     update({ status: 'disconnected', owner: null, band: null, message: 'Band disconnected. Connect again to send updates.' });
   }
+  function mergeBand(response) {
+    const next = { ...state.band, ...(response.band || response) };
+    const source = response.band || response;
+    // Firmware omits guidance once a fix expires. A partial event must not
+    // keep a bearing from an older complete status response.
+    if (('location' in source || 'peerLocation' in source) && !('guidance' in source)) delete next.guidance;
+    if (source.location?.valid === false || source.peerLocation?.valid === false) delete next.guidance;
+    return next;
+  }
   function received(event) {
     const value = event.target?.value;
     if (!value?.buffer || !value.byteLength) return;
@@ -41,7 +50,20 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
       try { response = JSON.parse(line); } catch (_) { continue; }
       if (response?.type === 'status') {
         // Unsolicited status updates are useful only after firmware ownership is verified.
-        if (state.status === 'connected' && response.owner === state.owner && (response.band?.owner === undefined || response.band.owner === state.owner)) update({ band: response.band || { ...state.band, ...response } });
+        if (state.status === 'connected' && response.owner === state.owner && (response.band?.owner === undefined || response.band.owner === state.owner)) update({ band: mergeBand(response) });
+        continue;
+      }
+      if (['message', 'sent', 'send_failed', 'dismissed'].includes(response?.type)) {
+        if (state.status !== 'connected' || response.owner !== state.owner) continue;
+        if (response.type === 'message') {
+          const peer = state.owner === 'nayaka' ? 'syifa' : 'nayaka';
+          if (response.from !== peer || typeof response.text !== 'string' || !/^[\x20-\x7e]{1,40}$/.test(response.text) || !Number.isSafeInteger(response.sequence) || response.sequence <= 0) continue;
+          update({ band: { ...state.band, incoming: response.text, unread: true, view: 'incoming', incomingSequence: response.sequence } });
+        } else if (response.type === 'dismissed') {
+          update({ band: { ...state.band, incoming: '', unread: false, view: response.view || 'home' } });
+        } else {
+          update({ band: { ...state.band, result: response.type === 'sent' ? 'Received by band' : 'Delivery unconfirmed' } });
+        }
         continue;
       }
       const request = pending.get(response?.id);
@@ -49,7 +71,7 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
       pending.delete(response.id); clearTimeout(request.timer);
       if (response.ok !== true) request.reject(new Error(typeof response.error === 'string' ? response.error : 'The band did not acknowledge this request.'));
       else if (state.owner && [response.owner, response.band?.owner].some(owner => owner !== undefined && owner !== state.owner)) request.reject(new Error('The reply came from a different band owner. Reconnect your band.'));
-      else { update({ band: response.band || (response.owner ? { ...state.band, ...response } : state.band) }); request.resolve(response); }
+      else { update({ band: response.owner || response.band?.owner ? mergeBand(response) : state.band }); request.resolve(response); }
     }
   }
 
