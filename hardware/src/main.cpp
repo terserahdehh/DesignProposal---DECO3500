@@ -14,6 +14,7 @@
 #include "pairing_keys.h"
 #include "location_math.h"
 #include "touch_press.h"
+#include "direction_arc.h"
 
 // Pin profile verified against Waveshare's ESP32-S3-Touch-LCD-1.28 demo.
 static const char *OWNERS[] = {"nayaka", "syifa"};
@@ -53,9 +54,16 @@ uint32_t lastPeer=0, heartbeatAt=0, nextSequence=1, lastIncoming=0;
 String incoming, result, view="home", previousView="home", pendingText;
 uint32_t pendingSequence=0, pendingAt=0; int sendAttempts=0;
 String serialLine;
+uint32_t touchPresses=0,lastTouchAt=0;
 
 bool fresh(const Position &p) { return p.valid && uint32_t(millis()-p.received)<LOCATION_TTL; }
 bool peerConnected() { return lastPeer && uint32_t(millis()-lastPeer)<7000; }
+DirectionArc currentDirectionArc() {
+  if(view!="find"||!peerConnected()||!fresh(localPosition)||!fresh(peerPosition))return {false,0,90,0};
+  Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
+  DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
+  return directionArc(true,true,true,true,q.usable,g.bearing,g.metres);
+}
 void output(JsonDocument &doc) {
   doc["owner"]=OWNERS[SELF]; serializeJson(doc,Serial); Serial.println();
   if(bleConnected){String line;serializeJson(doc,line);if(bleOutput.length()+line.length()<20000)bleOutput+=line+"\n";}
@@ -73,6 +81,7 @@ void status(JsonDocument &doc) {
   doc["mac"]=WiFi.macAddress(); doc["peer"]=OWNERS[OTHER]; doc["peerConnected"]=peerConnected();
   doc["uptimeMillis"]=millis();
   doc["model"]="ESP32-S3-Touch-LCD-1.28"; doc["touchAvailable"]=touchAvailable;
+  doc["touchPresses"]=touchPresses;doc["lastTouchAt"]=lastTouchAt;
   doc["radioReady"]=radioReady; doc["view"]=view; doc["incoming"]=incoming;
   doc["bluetoothConnected"]=bleConnected;doc["bluetoothDisconnectReason"]=lastBleDisconnectReason;doc["bluetoothConfigWrites"]=configWrites;
   doc["unread"]=unread; doc["notificationLed"] = unread ? (OTHER==0 ? "purple" : "yellow") : "off";
@@ -90,8 +99,12 @@ void status(JsonDocument &doc) {
     p["bearingUncertaintyDegrees"]=q.bearingUncertaintyDegrees;
     p["northReferenced"]=true;p["simulated"]=localPosition.simulated||peerPosition.simulated;
     if(std::isfinite(q.combinedAccuracyMetres))p["accuracy"]=q.combinedAccuracyMetres;
-    doc["directionArrowVisible"]=view=="find"&&q.usable;
+    doc["directionArrowVisible"]=view=="find"&&peerConnected()&&q.usable;
   }
+  DirectionArc arc=currentDirectionArc();auto light=doc.createNestedObject("directionLight");
+  light["visible"]=arc.visible;light["colour"]=OTHER==0?"purple":"yellow";
+  light["bearing"]=arc.bearing;light["spanDegrees"]=arc.spanDegrees;
+  light["brightness"]=arc.brightness;light["northReferenced"]=true;
 }
 Packet packet(Kind kind,uint32_t sequence=0) { Packet p{};p.magic=MAGIC;p.version=1;p.kind=kind;p.owner=SELF;p.sequence=sequence;return p; }
 bool transmit(const Packet &p) { return radioReady && esp_now_send(MACS[OTHER],reinterpret_cast<const uint8_t*>(&p),sizeof(p))==ESP_OK; }
@@ -176,7 +189,7 @@ void pollTouch(){
   static uint32_t lastTouch=0;
   if(uint32_t(millis()-lastTouch)<220)return;
   int x=((b[2]&15)<<8)|b[3],y=((b[4]&15)<<8)|b[5];
-  if(x<240&&y<240){String key=touchButton(x,y);if(key.length()){lastTouch=millis();button(key);}}
+  if(x<240&&y<240){String key=touchButton(x,y);if(key.length()){lastTouch=millis();lastTouchAt=lastTouch;touchPresses++;button(key);}}
 }
 void label(const String &text,int x,int y,uint16_t color=0xffff,int font=2){frame.setTextColor(color,INK);frame.setTextDatum(MC_DATUM);frame.drawString(text,x,y,font);}
 std::vector<String> wrapLines(const String &text,int font){
@@ -225,7 +238,9 @@ void render(){
     label("FROM "+String(NAMES[OTHER]),120,106,OTHER==0?PURPLE:YELLOW);wrapped(incoming,127);label("Tap to dismiss",120,177,0xbdf7);
   }else if(view=="find"){
     label("FIND "+String(NAMES[OTHER]),120,105,OTHER==0?PURPLE:YELLOW);
-    if(!fresh(localPosition)||!fresh(peerPosition)){
+    if(!peerConnected()){
+      label("Peer offline",120,130);label("Keep both bands powered",120,154,0xbdf7,1);
+    }else if(!fresh(localPosition)||!fresh(peerPosition)){
       label("Location unavailable",120,130);label("Share both on /phone",120,154,0xbdf7);label("No GPS on this band",120,174,0xbdf7,1);
     }else{
       Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
@@ -249,6 +264,21 @@ void render(){
   }else {wrapped(result,125);label("OK to return",120,172,0xbdf7);}
   frame.fillTriangle(120,192,105,216,135,216,0xf208);frame.setTextColor(0xffff,0xf208);frame.setTextDatum(MC_DATUM);frame.drawString("!",120,205,2);
   frame.setTextColor(0x7bef,PAPER);frame.drawString("TOGETHER, FURTHER.",120,222,1);
+  DirectionArc arc=currentDirectionArc();
+  if(arc.visible){
+    uint16_t colour=OTHER==0?PURPLE:YELLOW;
+    // North at the top, clockwise bearing. A 90-degree arc with a bright
+    // centre and feathered ends; the remaining circumference stays neutral.
+    for(int step=-90;step<=90;step++){
+      double degrees=arc.bearing+step*0.5,angle=degrees*PI/180;
+      double strength=arcStrengthAt(arc,degrees);
+      for(int radius=109;radius<=117;radius++){
+        double halo=(radius>=111&&radius<=115)?1.0:0.35;
+        int x=120+std::lround(std::sin(angle)*radius),y=120-std::lround(std::cos(angle)*radius);
+        frame.drawPixel(x,y,arcColour565(colour,strength*halo));
+      }
+    }
+  }
   frame.pushSprite(0,0);dirty=false;
 }
 bool printable(const String &s,int max){if(s.length()==0||s.length()>max)return false;for(unsigned char c:s)if(c<32||c>126)return false;return true;}
