@@ -5,7 +5,7 @@
   "installCommand": "npm install",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/phone", "destination": "/index.html" },
-    { "source": "/phone/", "destination": "/index.html" }
+    { "source": "/phone", "destination": "/" },
+    { "source": "/phone/", "destination": "/" }
   ]
 }
