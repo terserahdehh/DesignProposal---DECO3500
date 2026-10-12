@@ -213,7 +213,8 @@ class BandBridge:
                         self.last_state[connection.owner][field] = message[field]
                 if message.get("type") == "message":
                     self.last_state[connection.owner].update(
-                        incoming=message.get("incoming", message.get("text", "")), unread=True, view="incoming")
+                        incoming=message.get("incoming", message.get("text", "")), unread=True, view="incoming",
+                        incomingSequence=message.get("sequence", 0))
 
     def _save_state(self, owner: str, message: dict[str, Any]):
         state = {k: v for k, v in message.items()
