@@ -33,10 +33,11 @@ def require(condition, message):
 
 
 class PairVerifier:
-    def __init__(self, bridge: BandBridge, reset_for_persistence=False, test_expiry=False):
+    def __init__(self, bridge: BandBridge, reset_for_persistence=False, test_expiry=False, quiet_touch=False):
         self.bridge = bridge
         self.reset_for_persistence = reset_for_persistence
         self.test_expiry = test_expiry
+        self.quiet_touch = quiet_touch
         self.original_messages = {}
         self.custom_messages = {
             owner: [{"id": f"verify-{owner}-1", "text": f"{owner.title()} hardware check"},
@@ -342,6 +343,8 @@ class PairVerifier:
         print("EXPIRY: waiting for the real 60-second lifetime without refreshing either demo fix", flush=True)
         next_progress, expired = 30, False
         states = {}
+        screen_interruptions = []
+        touch_before = {owner: self.status(owner).get('touchPresses') for owner in OWNERS}
         while time.monotonic() - started < 70:
             elapsed = time.monotonic() - started
             if elapsed >= next_progress:
@@ -350,7 +353,12 @@ class PairVerifier:
             states = {owner: self.status(owner) for owner in OWNERS}
             for owner, state in states.items():
                 require(state.get("peerConnected") is True, f"{owner}: link disconnected during location expiry test")
-                require(state.get("view") == "find", f"{owner}: Find Direction screen changed during expiry test (view={state.get('view')}, unread={state.get('unread')}, physicalTouchPresses={state.get('touchPresses')}); leave touchscreens untouched")
+                if state.get('view') != 'find':
+                    screen_interruptions.append({'owner': owner, 'elapsedSeconds': round(elapsed, 2),
+                                                 'view': state.get('view'), 'touchPresses': state.get('touchPresses')})
+                    require(len(screen_interruptions) <= 3, 'Too many screen interruptions; leave touchscreens untouched and rerun')
+                    print(f"EXPIRY: {owner} screen interrupted; reopening Find Direction without refreshing coordinates", flush=True)
+                    state = states[owner] = self.open_find(owner)
                 if not state.get("location", {}).get("valid") or not state.get("peerLocation", {}).get("valid"):
                     require("guidance" not in state, f"{owner}: stale location still produces guidance")
                     require(state.get("directionArrowVisible") is False, f"{owner}: stale location still displays an arrow")
@@ -363,6 +371,11 @@ class PairVerifier:
                 break
             time.sleep(1)
         require(expired, "Both local and received peer fixes must expire by 60 seconds plus heartbeat latency")
+        touch_after = {owner: state.get('touchPresses') for owner, state in states.items()}
+        if self.quiet_touch:
+            require(all(isinstance(count, int) for count in touch_before.values()), 'Quiet-touch check requires touch diagnostics firmware')
+            require(touch_before == touch_after and not screen_interruptions,
+                    f'Unwanted touch during hands-off test: before={touch_before}, after={touch_after}, interruptions={screen_interruptions}')
         self.record("All local and peer fixes expire; stale guidance and arrows disappear while radio stays connected", {
             "elapsedSeconds": round(time.monotonic() - started, 2), "locationLifetimeSeconds": 60,
             "owners": [{"owner": owner, "localValid": state["location"]["valid"],
@@ -370,6 +383,8 @@ class PairVerifier:
                         "directionArrowVisible": state["directionArrowVisible"], "peerConnected": True}
                        for owner, state in states.items()],
             "simulated": True,
+            "screenInterruptions": screen_interruptions,
+            "quietTouchRequired": self.quiet_touch, "touchPressesBefore": touch_before, "touchPressesAfter": touch_after,
         })
 
     def finish_direction_checks(self):
@@ -440,10 +455,11 @@ def main(argv=None):
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--reset-for-persistence", action="store_true", help="Pulse RTS/EN on each band, reverify owner/MAC/uptime, and prove presets survived reset. Close other serial applications first.")
     parser.add_argument("--test-expiry", action="store_true", help="Wait for the real 60-second location TTL, verify both local/peer fixes expire and stale arrows disappear, and print progress every 30 seconds.")
+    parser.add_argument('--quiet-touch', action='store_true', help='Require no touchscreen actions or screen interruptions during the 60-second hands-off expiry check')
     parser.add_argument("--output", type=Path, default=Path(__file__).parent / "artifacts" / "verification.json", help="JSON verification report; real coordinate values and original preset texts are excluded.")
     args = parser.parse_args(argv)
     band_bridge = BandBridge(ports=args.port, baud=args.baud)
-    verifier = PairVerifier(band_bridge, args.reset_for_persistence, args.test_expiry)
+    verifier = PairVerifier(band_bridge, args.reset_for_persistence, args.test_expiry, args.quiet_touch)
     try:
         ports = list(dict.fromkeys(args.port or discover_ports()))
         require(bool(ports), "No serial ports found; connect both bands or specify --port twice")
