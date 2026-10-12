@@ -9,3 +9,10 @@ npm-debug.log*
 .env
 .env.*
 .vercel/
+hardware/.pio/
+hardware/.venv/
+hardware/backups/
+hardware/artifacts/
+hardware/include/pairing_keys.h
+__pycache__/
+*.pyc
