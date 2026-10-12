@@ -13,8 +13,8 @@ import { View, Text, StyleSheet } from 'react-native';
 export default function FriendLight({ friend, diameter, direction, intensity, active, connected }) {
   const angle = (friend.angle + direction) * Math.PI / 180;
   const radius = diameter * 0.422;
-  const x = diameter / 2 + Math.cos(angle) * radius;
-  const y = diameter / 2 + Math.sin(angle) * radius;
+  const x = diameter / 2 + Math.sin(angle) * radius;
+  const y = diameter / 2 - Math.cos(angle) * radius;
 
   // Scale the marker size: slightly larger when active so it pops.
   const size = diameter * (active ? 0.078 : 0.063);

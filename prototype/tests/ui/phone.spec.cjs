@@ -78,6 +78,13 @@ test('custom popups, repeated messages, dismissal and direction expiry work on m
   await page.setViewportSize({ width: 390, height: 844 });
   await connect(page);
   await expect(page.getByTestId('direction-detail')).toContainText('100 m · 90° clockwise from north');
+  const arc = page.getByTestId('direction-ring').locator('path').nth(1);
+  await expect(arc).toHaveAttribute('stroke', '#FACC15');
+  const firstPath = await arc.getAttribute('d');
+  const firstBrightness = Number(await arc.getAttribute('opacity'));
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, bearing: 0, metres: 25 } }));
+  await expect(arc).not.toHaveAttribute('d', firstPath);
+  expect(Number(await arc.getAttribute('opacity'))).toBeGreaterThan(firstBrightness);
   const incoming = sequence => page.evaluate(sequence => window.__band.notify({ type: 'message', owner: 'nayaka', from: 'syifa', text: 'Meet beside the stage', sequence }), sequence);
   await incoming(42);
   await expect(page.getByTestId('incoming-band-popup')).toBeVisible();
@@ -91,6 +98,7 @@ test('custom popups, repeated messages, dismissal and direction expiry work on m
   await page.evaluate(() => window.__band.notify({ type: 'status', owner: 'nayaka', location: { valid: false }, peerLocation: { valid: true } }));
   await expect(page.getByTestId('direction-title')).toContainText('Waiting for fresh locations');
   await expect(page.getByTestId('direction-detail')).not.toContainText('90°');
+  await expect(page.getByTestId('direction-ring')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

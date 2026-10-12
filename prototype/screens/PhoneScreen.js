@@ -6,6 +6,8 @@ import { OWNERS, MAX_MESSAGES, MAX_TEXT_LENGTH, readPresets, savePresets, messag
 import { createBandBridge } from '../utils/bandBridge';
 import { createPhoneBluetooth } from '../utils/phoneBluetooth';
 import { describeBandStatus, initialTransportMode } from '../utils/bandStatus';
+import DirectionRing from '../components/DirectionRing';
+import { directionGlow } from '../utils/directionGlow';
 
 const NAMES = { nayaka: 'Nayaka', syifa: 'Syifa' };
 const COLOURS = { nayaka: THEME.purple, syifa: THEME.yellow };
@@ -64,6 +66,7 @@ export default function PhoneScreen() {
   const liveBand = transportMode === 'bluetooth' ? bluetooth.band : band;
   const live = describeBandStatus(liveBand, owner, connected, statusReceivedAt, now);
   const showIncoming = live.incoming && live.incoming.key !== hiddenIncomingKey && !pendingLoad;
+  const glow = live.mode === 'ready' ? directionGlow(liveBand.guidance.bearing, liveBand.guidance.metres) : null;
 
   useEffect(() => {
     const unsubscribe = phoneBluetooth.subscribe(next => { setBluetooth(next); setStatusReceivedAt(Date.now()); });
@@ -339,6 +342,7 @@ export default function PhoneScreen() {
             <Text accessibilityLiveRegion="polite" style={styles.notice}>{live.peerConnected ? `${NAMES[owner === 'nayaka' ? 'syifa' : 'nayaka']} connected over ESP-NOW` : 'Paired band is offline or status is unavailable'}</Text>
             <Text testID="direction-title" style={styles.messageText}>{live.title}</Text>
             {!!live.detail && <Text testID="direction-detail" style={styles.note}>{live.detail}</Text>}
+            {glow && <View style={{ alignItems: 'center', marginVertical: 12 }}><DirectionRing diameter={200} colour={COLOURS[owner === 'nayaka' ? 'syifa' : 'nayaka']} arrow {...glow} /><Text style={styles.tinyNote}>North-up direction preview · brighter when closer</Text></View>}
             {!!liveBand?.result && connected && <Text accessibilityLiveRegion="polite" style={styles.note}>Last band result: {liveBand.result}</Text>}
             {live.incoming && <Button onPress={() => setHiddenIncomingKey(null)}>Show incoming message</Button>}
             <Text style={styles.tinyNote}>Messages and SOS travel between the paired Nayaka and Syifa bands even when the website is closed. The arrow on the watch is north up; use a phone compass to orient yourself.</Text>

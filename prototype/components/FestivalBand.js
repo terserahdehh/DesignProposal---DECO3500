@@ -1,17 +1,21 @@
 // this component assembles the strap, casing, screen, buttons, and friend lights.
 import React from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { FRIENDS } from '../data/mockData';
+import { FRIENDS, DISTANCES } from '../data/mockData';
 import { THEME } from '../theme';
 import { lightForFriend } from '../utils/simulation';
 import FriendLight from './FriendLight';
 import BandButtons from './BandButtons';
 import BandScreen from './BandScreen';
+import DirectionRing from './DirectionRing';
+import { directionGlow } from '../utils/directionGlow';
 
 export default function FestivalBand({ state, hardware, hardwareFriend, width, onButton, motion, feedbackVisible, reduceMotion }) {
   const diameter = Math.min(430, Math.max(220, width - 30));
   const strapWidth = Math.min(width - 10, diameter * 1.54);
   const sos = state.view === 'result' && state.result?.signalId === 'sos';
+  const target = FRIENDS.find(friend => friend.id === state.targetId);
+  const glow = state.view === 'tracking' && state.connected[target?.id] ? directionGlow(target.angle + state.direction, DISTANCES[state.steps[target.id]]) : null;
   return <View testID="festival-band" style={[styles.stage, { height: diameter + 76 }]}>
     <View style={[styles.stageHalo, { width: diameter * 1.02, height: diameter * 1.02, borderRadius: diameter, opacity: sos ? 0.1 : 0.5, backgroundColor: sos ? THEME.red : '#132640' }]} />
     <Animated.View style={[styles.assembly, { width: strapWidth, height: diameter, transform: [{ translateX: motion }] }]}>
@@ -49,6 +53,7 @@ export default function FestivalBand({ state, hardware, hardwareFriend, width, o
           }]} />;
         })}
         {FRIENDS.map(friend => <FriendLight key={friend.id} friend={friend} diameter={diameter} direction={state.direction} connected={state.connected[friend.id]} {...lightForFriend(state, friend)} />)}
+        {glow && <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0 }}><DirectionRing diameter={diameter - 6} colour={target.color} {...glow} brightness={lightForFriend(state, target).intensity} /></View>}
       </View>
     </Animated.View>
   </View>;
