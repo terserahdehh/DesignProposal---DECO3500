@@ -128,6 +128,7 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
         const hello = await rpc('hello', {}, true);
         if (attempt !== generation) return false;
         const detectedOwner = hello.owner || hello.band?.owner;
+        if (hello.owner && hello.band?.owner && hello.owner !== hello.band.owner) throw new Error('The firmware returned conflicting band owners. Reconnect with matching PulseBand firmware.');
         if (detectedOwner !== owner) throw new Error(`This is ${detectedOwner === 'nayaka' ? 'Nayaka' : detectedOwner === 'syifa' ? 'Syifa' : 'an unassigned band'}’s band. Choose ${owner === 'nayaka' ? 'Nayaka' : 'Syifa'}’s band instead.`);
         update({ status: 'connected', owner, band: hello.band || hello, deviceName: chosen.name || 'PulseBand', message: `Connected to ${owner === 'nayaka' ? 'Nayaka' : 'Syifa'}’s physical band. Firmware identity verified.` });
         return true;
