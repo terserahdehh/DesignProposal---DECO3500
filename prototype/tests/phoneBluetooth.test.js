@@ -90,7 +90,7 @@ test('long preset frames and notification replies survive 20-byte fragmentation'
 
 test('real firmware top-level replies merge presets and location into verified band state', async () => {
   const messages = [{ id: 'meet', text: 'Meet at the gate' }];
-  const fix = { lat: -27.47, lon: 153.03, accuracy: 10, timestamp: 1791422400000, simulated: false };
+  const fix = { lat: -27.47, lon: 153.03, accuracy: 10, timestamp: Date.now(), simulated: false };
   const band = fakeBand('nayaka', packet => {
     if (packet.cmd === 'hello') return { type: 'response', ok: true, owner: 'nayaka', mac: 'AA:BB:CC:DD:EE:01', messages: [], location: { valid: false } };
     if (packet.cmd === 'presets') return { type: 'response', ok: true, owner: 'nayaka', messages: packet.messages };

@@ -1,6 +1,7 @@
 // Configuring a real band directly from supported secure-context browsers.
 const { SERVICE } = require('./bluetooth');
 const { validOwner, validatePresets, validatedBandPresets } = require('./presets');
+const { validateLocationFix } = require('./locationFix');
 const CONFIG_CHARACTERISTIC = 'b97b0003-7a62-4f1a-9b9c-0b13e9de3500';
 
 function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {}) {
@@ -86,6 +87,7 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
       pending.set(id, { resolve, reject, timer: setTimeout(() => { pending.delete(id); reject(new Error('The band did not acknowledge in time. Delivery is unconfirmed; try again.')); }, options.timeoutMs || 10000) });
     });
     const transmit = async () => {
+      if (cmd === 'location') validateLocationFix(body, (options.now || Date.now)());
       for (let offset = 0; offset < bytes.length; offset += 20) {
         if (attempt !== generation) throw new Error('Bluetooth disconnected. Delivery is unconfirmed.');
         await target.writeValueWithResponse(bytes.slice(offset, offset + 20));
@@ -149,7 +151,7 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
     },
     async shareLocation(owner, location) {
       if (owner !== state.owner) throw new Error('Connect the selected wearer’s band first.');
-      if (!location || !Number.isFinite(location.lat) || Math.abs(location.lat) > 90 || !Number.isFinite(location.lon) || Math.abs(location.lon) > 180 || !Number.isFinite(location.accuracy) || location.accuracy < 0 || !Number.isFinite(location.timestamp) || location.timestamp <= 0 || location.simulated !== false) throw new Error('A valid phone location is required.');
+      validateLocationFix(location, (options.now || Date.now)());
       return rpc('location', location);
     },
     async clearLocation(owner) {

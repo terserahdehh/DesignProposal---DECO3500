@@ -1,4 +1,5 @@
 const { normalizeBridgeUrl, validOwner, validatePresets, validatedBandPresets } = require('./presets');
+const { validateLocationFix } = require('./locationFix');
 
 function createBandBridge(input, options = {}) {
   const base = normalizeBridgeUrl(input);
@@ -47,7 +48,7 @@ function createBandBridge(input, options = {}) {
     },
     async shareLocation(owner, location) {
       const path = ownerPath(owner);
-      if (!location || !Number.isFinite(location.lat) || Math.abs(location.lat) > 90 || !Number.isFinite(location.lon) || Math.abs(location.lon) > 180 || !Number.isFinite(location.accuracy) || location.accuracy < 0 || !Number.isFinite(location.timestamp) || location.timestamp <= 0 || location.simulated !== false) throw new Error('A valid phone location is required.');
+      validateLocationFix(location, (options.now || Date.now)());
       return request(`${path}/location`, location);
     },
     async clearLocation(owner) { return request(`${ownerPath(owner)}/clear-location`, {}); },
