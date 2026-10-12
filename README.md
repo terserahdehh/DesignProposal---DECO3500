@@ -6,6 +6,10 @@ The current prototype uses a code-built circular PulseBand body with a small rec
 
 ## Physical ESP32 bands and phone setup
 
+Use [the deployed physical-band setup page](https://pulseband-steel.vercel.app/phone) for actual ESP32 presets, incoming messages and phone location. Vercel HTTPS supports the same Direct Bluetooth workflow as localhost in compatible browsers. Hosted pages initially select Direct Bluetooth; select USB bridge explicitly when using the local companion service. The live band card displays the paired band's connection and approximate north-referenced guidance, and incoming custom messages open a browser popup. Hiding the browser popup leaves the watch popup available to dismiss on the watch.
+
+The physical firmware pairs only **Nayaka and Syifa** using their configured MAC addresses and shared key. Connecting an additional ESP32 or opening another laptop page does not add it to this pair. The bands communicate directly over ESP-NOW even without a laptop. Direction needs two separately located sources: both bands receiving one laptop's coordinates cannot locate two moving wearers. See the [October 12 code and verification report](hardware/AUDIT-2026-10-12.md) for feature status, hosting setup and remaining physical checks.
+
 The repository now includes firmware for the two verified **Waveshare ESP32-S3-Touch-LCD-1.28** boards. USB serial `5B91033770` is Nayaka; `5B91034227` is Syifa. Their LCDs show only the white watch frame, touch buttons, message screen, notification indicators and SOS control. Direct ESP-NOW carries messages between the bands; incoming messages appear as dismissible pop-ups with the sender's colour. Presets are stored in flash.
 
 Open **`/phone`** and connect the selected wearer's band through the local USB bridge or Direct Bluetooth. **Load from band** reads its saved messages into a new or reconnected browser, asking before replacing a different local list or unfinished draft. Add, edit or delete messages locally, then use manual **Sync** to save them on the band with a hardware acknowledgement. This page can share each wearer's real phone location to their own band. The hardware has no GPS or magnetometer: guidance is an approximate, north-referenced bearing and distance from shared phone coordinates, with stale fixes rejected. Direction uses both reported accuracy radii and includes an angular uncertainty estimate; overlapping or near-coincident fixes suppress guidance. This cannot guarantee indoor positioning or wrist-relative direction. Notification lights are displayed on the LCD. See [hardware setup, use and validation](hardware/README.md) for supported browsers, startup commands, recovery backups and hardware limitations. The original `/` prototype below retains its separate simulation and browser messaging panels.
@@ -78,6 +82,7 @@ For a browser-only MacBook setup, real inter-laptop Bluetooth messaging is **not
 cd prototype
 npm test
 npm run build
+npm run test:ui # Production export in installed Google Chrome; hardware APIs use test doubles.
 ```
 
 The tests cover simulation, BLE discovery/capabilities/errors, persistent names and identities, WebRTC pairing/validation/cancellation, acknowledgements, and disconnects. `browserLink.integration.test.js` uses the development-only Werift implementation to establish two real ICE/DTLS/SCTP peers over local UDP and exchange all six signals both ways, rename a peer and disconnect. Socket access is required to run that integration test. Werift is not bundled in the website.

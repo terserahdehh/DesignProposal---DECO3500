@@ -38,11 +38,23 @@ hardware/.venv/bin/python hardware/bridge.py
 
 On `/phone`, choose **USB bridge** and keep `http://localhost:8787` as the bridge address. The bridge discovers the two ports and verifies the owner from firmware; it does not assign names by port order. Close the bridge before flashing or running the serial verification script.
 
+For the deployed website on this laptop, allow its exact origin when starting the bridge:
+
+```bash
+hardware/.venv/bin/python hardware/bridge.py --allow-origin https://pulseband-steel.vercel.app
+```
+
+Open **https://pulseband-steel.vercel.app/phone**, select **USB bridge**, and use `http://localhost:8787`. Allow local network access if Chrome prompts for it. The bridge still runs locally on the laptop; Vercel does not run Python or access your USB ports. A preview deployment or custom domain needs its own exact `--allow-origin` value. Chrome's [Local Network Access permission](https://developer.chrome.com/blog/local-network-access) covers requests from HTTPS pages to loopback/LAN services. Other browser versions or managed browser policies may prevent those requests; Direct Bluetooth provides the alternative in supported browsers.
+
+Hosted `/phone` defaults to **Direct Bluetooth**. Its **Live physical band** card shows ESP-NOW peer connection, distance/bearing and uncertainty after both phones share fresh positions. Incoming custom messages open a popup on the connected page as well as on the physical watch. **Hide on this page** hides only the browser popup; dismiss the watch popup on its touchscreen. Repeated messages remain distinct, including over USB. The page suppresses direction when locations expire, the peer is offline, or status stops arriving. Automatic browser location updates stop when the band disconnects.
+
 For a supported phone, serve the web app over HTTPS, open `/phone` in Chrome on Android and choose **Direct Bluetooth**. Select your wearer, press **Connect**, and choose `PulseBand-Nayaka` or `PulseBand-Syifa`. The page checks the firmware identity before enabling sync. This mode uses Bluetooth to configure a band; messages between bands still use ESP-NOW. iPhone browsers do not support this Web Bluetooth flow. A laptop localhost page also supports Bluetooth when browser and OS permissions allow it. The existing Vercel configuration includes the `/phone` route fallback; edits must be deployed to your existing host before its public `/phone` URL changes.
 
 ## Real location and direction
 
 These boards have an accelerometer/gyroscope, but **no GPS or magnetometer**. Each wearer must share their own phone's real location to their own band using `/phone`. Connect both phones separately, then use **Keep location updated** and leave the pages open. A position from a laptop represents that laptop, not a separately moving wearer.
+
+The configured pair is fixed to Nayaka and Syifa's MAC addresses and encryption key. Connecting both to one laptop lets you prepare each band's messages through USB, but does not provide independent wearer locations. Two laptops can each supply a browser location, although laptop accuracy may be poor. A third ESP32 is not part of this pair without a firmware/group-protocol change. The browser WebRTC panel exchanges laptop signals independently; it does not relay band positions or extend ESP-NOW radio range.
 
 The bands exchange coordinates and calculate approximate distance and bearing measured clockwise from north. The arrow is **north up**, not relative to the direction your wrist faces. Use a phone compass to orient yourself. The screen includes the combined position accuracy. Indoor GPS can be inaccurate; this is not indoor venue positioning. Positions expire after 60 seconds without an update, are not saved in flash, and are cleared by **Stop sharing location**. Location access requires HTTPS or localhost and permission from the browser. An HTTP page at a laptop's LAN address generally cannot obtain phone GPS. For mobile location use the HTTPS page and Direct Bluetooth.
 
