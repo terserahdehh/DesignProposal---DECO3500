@@ -76,6 +76,14 @@ test('selecting the wrong physical band disconnects it and prevents configuratio
   assert.equal(band.frames.length, 1);
 });
 
+test('contradictory hello ownership cannot authorize hardware configuration', async () => {
+  const band = fakeBand('nayaka', () => ({ ok: true, owner: 'nayaka', band: { owner: 'syifa' } }));
+  const client = createPhoneBluetooth(band.api);
+  assert.equal(await client.connect('nayaka'), false);
+  assert.equal(client.getState().owner, null);
+  assert.equal(band.device.gatt.connected, false);
+});
+
 test('long preset frames and notification replies survive 20-byte fragmentation', async () => {
   const band = fakeBand();
   const client = createPhoneBluetooth(band.api);
