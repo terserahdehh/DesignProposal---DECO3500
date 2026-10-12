@@ -3,10 +3,13 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../../dist');
-const rewrites = require('../../vercel.json').rewrites;
+const { rewrites, cleanUrls } = require('../../vercel.json');
 http.createServer((request, response) => {
   const route = new URL(request.url, 'http://localhost').pathname;
-  const target = route === '/' ? '/index.html' : rewrites.find(rule => rule.source === route)?.destination || route;
+  let target = rewrites.find(rule => rule.source === route)?.destination || route;
+  // Vercel removes HTML extensions from its routing filesystem before rewrites.
+  if (cleanUrls && target.endsWith('.html')) { response.writeHead(404).end(); return; }
+  if (target === '/') target = '/index.html';
   const file = path.resolve(root, `.${target}`);
   if (!file.startsWith(`${root}${path.sep}`)) { response.writeHead(403).end(); return; }
   fs.readFile(file, (error, bytes) => {
