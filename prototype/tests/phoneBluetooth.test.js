@@ -165,6 +165,45 @@ test('live status notifications update the verified wearer and ignore different 
   assert.equal(client.getState().band, null);
 });
 
+test('expired or cleared Bluetooth status removes the previous direction', async () => {
+  const band = fakeBand('nayaka', () => ({ ok: true, owner: 'nayaka', location: { valid: true }, peerLocation: { valid: true }, guidance: { available: true, usable: true, bearing: 90 } }));
+  const client = createPhoneBluetooth(band.api);
+  await client.connect('nayaka');
+  assert.equal(client.getState().band.guidance.bearing, 90);
+  band.notify(`${JSON.stringify({ type: 'status', owner: 'nayaka', location: { valid: false }, peerLocation: { valid: true }, directionArrowVisible: false })}\n`);
+  assert.equal(client.getState().band.guidance, undefined);
+  client.disconnect();
+});
+
+test('custom band message and dismissal notifications update the phone immediately', async () => {
+  const band = fakeBand();
+  const client = createPhoneBluetooth(band.api);
+  await client.connect('nayaka');
+  band.notify(`${JSON.stringify({ type: 'message', owner: 'nayaka', from: 'syifa', text: 'Meet at gate two', sequence: 42 })}\n`);
+  assert.equal(client.getState().band.incoming, 'Meet at gate two');
+  assert.equal(client.getState().band.unread, true);
+  assert.equal(client.getState().band.view, 'incoming');
+  assert.equal(client.getState().band.incomingSequence, 42);
+  band.notify(`${JSON.stringify({ type: 'dismissed', owner: 'nayaka', incoming: '', unread: false, view: 'home' })}\n`);
+  assert.equal(client.getState().band.unread, false);
+  assert.equal(client.getState().band.incoming, '');
+  client.disconnect();
+});
+
+test('invalid owner, sender or text cannot become an incoming band popup', async () => {
+  const band = fakeBand();
+  const client = createPhoneBluetooth(band.api);
+  await client.connect('nayaka');
+  for (const message of [
+    { owner: 'syifa', from: 'nayaka', text: 'Other band' },
+    { owner: 'nayaka', from: 'nayaka', text: 'Self' },
+    { owner: 'nayaka', from: 'amy', text: 'Unpaired band' },
+    { owner: 'nayaka', from: 'syifa', text: 'x'.repeat(41) },
+  ]) band.notify(`${JSON.stringify({ type: 'message', sequence: 42, ...message })}\n`);
+  assert.equal(client.getState().band.incoming, undefined);
+  client.disconnect();
+});
+
 test('concurrent presets and phone location writes remain separate complete JSON frames', async () => {
   const band = fakeBand();
   const client = createPhoneBluetooth(band.api);
