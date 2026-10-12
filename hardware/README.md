@@ -1,5 +1,7 @@
 # PulseBand on the two physical bands
 
+See [the short phone/laptop guide](QUICK_START.md) for adding popup messages, finding friends with the directional quarter-ring lights, and using Vercel or localhost.
+
 The connected boards were identified from their factory firmware as **Waveshare ESP32-S3-Touch-LCD-1.28**: round 240×240 GC9A01 displays, CST816S touch, 16 MB flash and 2 MB QSPI PSRAM. The pin profile comes from the [official board documentation](https://docs.waveshare.com/ESP32-S3-Touch-LCD-1.28) and [Arduino examples](https://docs.waveshare.com/ESP32-S3-Touch-LCD-1.28/Arduino).
 
 | Wearer | USB serial | Device MAC | Bluetooth name |
