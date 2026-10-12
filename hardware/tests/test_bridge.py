@@ -148,6 +148,13 @@ class BridgeTests(unittest.TestCase):
                 self.assertTrue(any(event["text"] == message and event["sender"] == owner for event in received))
             eventually(check)
 
+    def test_repeated_custom_messages_keep_their_device_sequence_for_phone_popups(self):
+        self.connect()
+        for sequence in (42, 43):
+            self.nayaka.emit({"type": "message", "owner": "nayaka", "from": "syifa", "text": "Meet at gate", "sequence": sequence})
+            eventually(lambda: self.assertEqual(self.bridge.snapshot("nayaka").get("incomingSequence"), sequence))
+            self.assertEqual(self.bridge.snapshot("nayaka")["incoming"], "Meet at gate")
+
     def test_status_snapshot_follows_events_and_disconnection(self):
         self.connect()
         self.syifa.emit({"type": "status", "owner": "syifa", "view": "incoming", "incoming": {"text": "Hello"}})
