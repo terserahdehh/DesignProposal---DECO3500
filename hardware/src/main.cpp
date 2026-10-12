@@ -55,6 +55,7 @@ String incoming, result, view="home", previousView="home", pendingText;
 uint32_t pendingSequence=0, pendingAt=0; int sendAttempts=0;
 String serialLine;
 uint32_t touchPresses=0,lastTouchAt=0;
+uint32_t touchReports=0;uint8_t lastTouchGesture=0,lastTouchEvent=0,lastTouchFingers=0;
 
 bool fresh(const Position &p) { return p.valid && uint32_t(millis()-p.received)<LOCATION_TTL; }
 bool peerConnected() { return lastPeer && uint32_t(millis()-lastPeer)<7000; }
@@ -82,6 +83,8 @@ void status(JsonDocument &doc) {
   doc["uptimeMillis"]=millis();
   doc["model"]="ESP32-S3-Touch-LCD-1.28"; doc["touchAvailable"]=touchAvailable;
   doc["touchPresses"]=touchPresses;doc["lastTouchAt"]=lastTouchAt;
+  doc["touchReports"]=touchReports;doc["lastTouchGesture"]=lastTouchGesture;
+  doc["lastTouchEvent"]=lastTouchEvent;doc["lastTouchFingers"]=lastTouchFingers;
   doc["radioReady"]=radioReady; doc["view"]=view; doc["incoming"]=incoming;
   doc["bluetoothConnected"]=bleConnected;doc["bluetoothDisconnectReason"]=lastBleDisconnectReason;doc["bluetoothConfigWrites"]=configWrites;
   doc["unread"]=unread; doc["notificationLed"] = unread ? (OTHER==0 ? "purple" : "yellow") : "off";
@@ -185,7 +188,8 @@ void pollTouch(){
   Wire.beginTransmission(0x15);Wire.write(0x01);if(Wire.endTransmission(false)!=0)return;
   if(Wire.requestFrom(0x15,6)!=6)return;
   uint8_t b[6];for(auto &v:b)v=Wire.read();
-  if(!touchPress.observe(b[2]>>6,b[1]&15))return;
+  touchReports++;lastTouchGesture=b[0];lastTouchEvent=b[2]>>6;lastTouchFingers=b[1];
+  if(!touchPress.observe(lastTouchEvent,lastTouchFingers,lastTouchGesture))return;
   static uint32_t lastTouch=0;
   if(uint32_t(millis()-lastTouch)<220)return;
   int x=((b[2]&15)<<8)|b[3],y=((b[4]&15)<<8)|b[5];
@@ -424,8 +428,8 @@ void setup(){
   Wire.beginTransmission(0x15);touchAvailable=Wire.endTransmission()==0;
   if(touchAvailable){
     Wire.beginTransmission(0x15);Wire.write(0xfe);Wire.write(1);bool configured=Wire.endTransmission()==0;
-    // Explicit touch/change IRQs provide release reports for the press latch.
-    Wire.beginTransmission(0x15);Wire.write(0xfa);Wire.write(0x60);touchAvailable=Wire.endTransmission()==0&&configured;
+    // Include motion/gesture IRQs so SingleClick completion is reported.
+    Wire.beginTransmission(0x15);Wire.write(0xfa);Wire.write(0x70);touchAvailable=Wire.endTransmission()==0&&configured;
   }
   pinMode(5,INPUT_PULLUP);attachInterrupt(digitalPinToInterrupt(5),onTouch,RISING);
   // Bluetooth coexistence in IDF 4.4 requires modem sleep enabled. With no AP
