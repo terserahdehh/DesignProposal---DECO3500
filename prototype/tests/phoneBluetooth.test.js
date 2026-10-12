@@ -208,13 +208,25 @@ test('concurrent presets and phone location writes remain separate complete JSON
   const band = fakeBand();
   const client = createPhoneBluetooth(band.api);
   await client.connect('nayaka');
-  const fix = { lat: -27.47, lon: 153.03, accuracy: 10, timestamp: 1791422400000, simulated: false };
+  const fix = { lat: -27.47, lon: 153.03, accuracy: 10, timestamp: Date.now(), simulated: false };
   await Promise.all([client.syncPresets('nayaka', [{ id: 'meet', text: 'Meet at the entrance' }]), client.shareLocation('nayaka', fix)]);
   await client.clearLocation('nayaka');
   assert.deepEqual(band.frames.map(frame => frame.cmd), ['hello', 'presets', 'location', 'clear_location']);
   assert.equal(band.frames[2].simulated, false);
   assert.equal(band.frames[2].timestamp, fix.timestamp);
   assert.equal(new Set(band.frames.map(frame => frame.id)).size, 4);
+  client.disconnect();
+});
+
+test('old location callbacks cannot refresh the physical band location lifetime', async () => {
+  const now = Date.now();
+  const band = fakeBand();
+  const client = createPhoneBluetooth(band.api, { now: () => now });
+  await client.connect('nayaka');
+  for (const timestamp of [now - 60000, now + 5001, now + 0.5]) {
+    await assert.rejects(client.shareLocation('nayaka', { lat: 0, lon: 0, accuracy: 5, timestamp, simulated: false }), /fresh phone location/);
+  }
+  assert.equal(band.frames.length, 1);
   client.disconnect();
 });
 

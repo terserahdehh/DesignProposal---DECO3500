@@ -75,13 +75,23 @@ test('USB readback rejects malformed presets and accepts an acknowledged empty b
 
 test('real phone location includes accuracy and timestamp while invalid fixes are blocked', async () => {
   let requests = 0;
-  const fix = { lat: -27.47, lon: 153.03, accuracy: 12, timestamp: 1791422400000, simulated: false };
+  const fix = { lat: -27.47, lon: 153.03, accuracy: 12, timestamp: Date.now(), simulated: false };
   const bridge = createBandBridge('http://localhost:8787', { fetch: async (url, options) => {
     requests++; assert.match(url, /\/api\/bands\/nayaka\/location$/); assert.deepEqual(JSON.parse(options.body), fix); return response({ ok: true });
   } });
   await bridge.shareLocation('nayaka', fix);
   for (const patch of [{ lat: NaN }, { lat: 91 }, { lon: -181 }, { accuracy: -1 }, { timestamp: 0 }, { simulated: true }]) await assert.rejects(bridge.shareLocation('nayaka', { ...fix, ...patch }), /valid phone location/);
   assert.equal(requests, 1);
+});
+
+test('stale, future and fractional phone fixes never reach USB hardware', async () => {
+  const now = Date.now();
+  let requests = 0;
+  const bridge = createBandBridge('http://localhost:8787', { now: () => now, fetch: async () => { requests++; return response({ ok: true }); } });
+  for (const timestamp of [now - 60000, now + 5001, now + 0.5]) {
+    await assert.rejects(bridge.shareLocation('nayaka', { lat: 0, lon: 0, accuracy: 5, timestamp, simulated: false }), /fresh phone location/);
+  }
+  assert.equal(requests, 0);
 });
 
 test('a timed-out request stays unconfirmed', async () => {
