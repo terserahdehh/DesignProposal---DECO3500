@@ -118,3 +118,45 @@ test('USB status exposes both wearers and their live incoming popup', async ({ p
   await expect(page.getByTestId('incoming-band-popup')).toBeHidden();
   await expect(page.getByTestId('live-band-status')).toContainText("Syifa's band");
 });
+
+test('cancelling a band import preserves an unfinished draft and local messages', async ({ page }) => {
+  await connect(page);
+  await page.getByTestId('preset-input').fill('Unfinished message');
+  const before = await page.getByRole('button', { name: /^Edit / }).count();
+  await page.getByTestId('load-presets').click();
+  await page.getByTestId('cancel-load-presets').click();
+  await expect(page.getByTestId('preset-input')).toHaveValue('Unfinished message');
+  expect(await page.getByRole('button', { name: /^Edit / }).count()).toBe(before);
+  expect(await page.evaluate(() => window.__band.commands.some(packet => packet.cmd === 'presets'))).toBe(false);
+});
+
+test('uncertain, offline and old telemetry remove browser direction claims', async ({ page }) => {
+  await connect(page);
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, usable: false } }));
+  await expect(page.getByTestId('direction-title')).toContainText('too uncertain');
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', peerConnected: false }));
+  await expect(page.getByTestId('direction-title')).toContainText('Waiting for fresh locations');
+  await expect(page.getByTestId('direction-title')).toContainText('Connect your band', { timeout: 12000 });
+});
+
+test('unsupported Bluetooth leaves the message editor usable without hardware writes', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: null }));
+  await page.route('http://localhost:8787/**', route => route.fulfill({ json: { bands: [] } }));
+  await page.goto('/phone');
+  await page.getByTestId('transport-bluetooth').click();
+  await expect(page.getByTestId('connect-bluetooth')).toBeDisabled();
+  await page.getByTestId('preset-input').fill('Meet near the entrance');
+  await page.getByTestId('save-preset').click();
+  await expect(page.getByTestId('preset-notice')).toContainText('Saved on this browser');
+  await expect(page.getByTestId('sync-presets')).toBeDisabled();
+});
+
+test('the original prototype still loads and exposes the physical setup link', async ({ page }) => {
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Nayaka', exact: true }).click();
+  await expect(page.getByText('Using PulseBand as Nayaka')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Prepare messages for your physical band ↗' })).toHaveAttribute('href', '/phone');
+  await expect(page.getByText('LIVE BAND SIMULATION', { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
