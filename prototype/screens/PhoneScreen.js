@@ -5,6 +5,7 @@ import { THEME } from '../theme';
 import { OWNERS, MAX_MESSAGES, MAX_TEXT_LENGTH, readPresets, savePresets, messageError, newMessageId, readBridgeUrl, saveBridgeUrl } from '../utils/presets';
 import { createBandBridge } from '../utils/bandBridge';
 import { createPhoneBluetooth } from '../utils/phoneBluetooth';
+import { describeBandStatus, initialTransportMode } from '../utils/bandStatus';
 
 const NAMES = { nayaka: 'Nayaka', syifa: 'Syifa' };
 const COLOURS = { nayaka: THEME.purple, syifa: THEME.yellow };
@@ -29,7 +30,7 @@ export default function PhoneScreen() {
   const [bridgeUrl, setBridgeUrl] = useState(readBridgeUrl);
   const [bridgeDraft, setBridgeDraft] = useState(bridgeUrl);
   const bridge = useMemo(() => createBandBridge(bridgeUrl), [bridgeUrl]);
-  const [transportMode, setTransportMode] = useState('usb');
+  const [transportMode, setTransportMode] = useState(() => initialTransportMode(globalThis.location));
   const [phoneBluetooth] = useState(() => createPhoneBluetooth());
   const [bluetooth, setBluetooth] = useState(phoneBluetooth.getState);
   const transport = transportMode === 'bluetooth' ? phoneBluetooth : bridge;
@@ -49,6 +50,9 @@ export default function PhoneScreen() {
   const locationSession = useRef(0);
   const locationSending = useRef(null);
   const mounted = useRef(true);
+  const [now, setNow] = useState(Date.now);
+  const [statusReceivedAt, setStatusReceivedAt] = useState(0);
+  const [hiddenIncomingKey, setHiddenIncomingKey] = useState(null);
   const messages = lists[owner];
   const editorBusy = syncing || loadingPresets || !!pendingLoad;
   const band = bands.find(item => item.owner === owner);
@@ -57,11 +61,21 @@ export default function PhoneScreen() {
   const previewIndex = Math.max(0, messages.findIndex(message => message.id === previewId));
   const preview = messages[previewIndex];
   const geolocation = Platform.OS === 'web' && typeof navigator !== 'undefined' ? navigator.geolocation : null;
+  const liveBand = transportMode === 'bluetooth' ? bluetooth.band : band;
+  const live = describeBandStatus(liveBand, owner, connected, statusReceivedAt, now);
+  const showIncoming = live.incoming && live.incoming.key !== hiddenIncomingKey && !pendingLoad;
 
   useEffect(() => {
-    const unsubscribe = phoneBluetooth.subscribe(setBluetooth);
+    const unsubscribe = phoneBluetooth.subscribe(next => { setBluetooth(next); setStatusReceivedAt(Date.now()); });
     return () => { unsubscribe(); phoneBluetooth.disconnect(); };
   }, [phoneBluetooth]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => { if (!live.incoming) setHiddenIncomingKey(null); }, [live.incoming?.key]);
 
   useEffect(() => {
     if (transportMode !== 'usb') { setChecking(false); return undefined; }
@@ -74,7 +88,7 @@ export default function PhoneScreen() {
       setChecking(true);
       try {
         const result = await bridge.status();
-        if (active) { setBands(result.bands); setBridgeError(''); }
+        if (active) { setBands(result.bands); setStatusReceivedAt(Date.now()); setBridgeError(''); }
       } catch (error) {
         if (active) { setBands([]); setBridgeError(error.message); }
       } finally {
@@ -95,6 +109,7 @@ export default function PhoneScreen() {
     setLocating(false);
     setLocation(null);
     setLocationNotice(null);
+    setHiddenIncomingKey(null);
     return () => {
       locationSession.current += 1;
       if (watchId.current !== null) geolocation?.clearWatch(watchId.current);
@@ -303,6 +318,16 @@ export default function PhoneScreen() {
             <Text style={styles.tinyNote}>Location requires HTTPS or localhost. Leave this page open for automatic updates. GPS accuracy and stale fixes limit guidance, especially inside a crowded venue.</Text>
             <Text style={styles.tinyNote}>Switching wearer or connection stops browser updates. The previous band keeps its last fix until it expires; use Stop sharing location to request clearing.</Text>
           </View>
+          <View testID="live-band-status" style={styles.card}>
+            <Text style={styles.cardLabel}>LIVE PHYSICAL BAND</Text>
+            <Text accessibilityRole="header" style={styles.cardTitle}>{NAMES[owner]}'s band</Text>
+            <Text accessibilityLiveRegion="polite" style={styles.notice}>{live.peerConnected ? `${NAMES[owner === 'nayaka' ? 'syifa' : 'nayaka']} connected over ESP-NOW` : 'Paired band is offline or status is unavailable'}</Text>
+            <Text testID="direction-title" style={styles.messageText}>{live.title}</Text>
+            {!!live.detail && <Text testID="direction-detail" style={styles.note}>{live.detail}</Text>}
+            {!!liveBand?.result && connected && <Text accessibilityLiveRegion="polite" style={styles.note}>Last band result: {liveBand.result}</Text>}
+            {live.incoming && <Button onPress={() => setHiddenIncomingKey(null)}>Show incoming message</Button>}
+            <Text style={styles.tinyNote}>Messages and SOS travel between the paired Nayaka and Syifa bands even when the website is closed. The arrow on the watch is north up; use a phone compass to orient yourself.</Text>
+          </View>
         </View>
 
         <View style={[styles.sideColumn, width < 900 && { width: '100%' }]}>
@@ -320,7 +345,7 @@ export default function PhoneScreen() {
             <Text style={styles.cardLabel}>CONNECT YOUR BAND</Text>
             <View style={styles.actionRow}><Button testID="transport-usb" selected={transportMode === 'usb'} disabled={editorBusy || bluetooth.status === 'connecting'} onPress={() => chooseTransport('usb')}>USB bridge</Button><Button testID="transport-bluetooth" selected={transportMode === 'bluetooth'} disabled={editorBusy || bluetooth.status === 'connecting'} onPress={() => chooseTransport('bluetooth')}>Direct Bluetooth</Button></View>
             {transportMode === 'bluetooth' ? <>
-              <Text style={styles.note}>On a phone, use an HTTPS page in Chrome on Android and connect your own band. The firmware identity is checked before syncing.</Text>
+              <Text style={styles.note}>Use this Vercel HTTPS page in Chrome on Android or a supported laptop browser and connect your own band. The firmware identity is checked before syncing.</Text>
               <Text accessibilityLiveRegion="polite" style={[styles.notice, bluetooth.status === 'error' && styles.error, bluetooth.status === 'connected' && styles.success]}>{bluetooth.message}</Text>
               {bluetooth.deviceName && <Text style={styles.tinyNote}>{bluetooth.deviceName}</Text>}
               {bluetooth.status === 'connected' ? <Button disabled={editorBusy} onPress={() => phoneBluetooth.disconnect()}>Disconnect Bluetooth</Button> : <Button testID="connect-bluetooth" primary disabled={editorBusy || ['unsupported', 'connecting'].includes(bluetooth.status)} onPress={() => phoneBluetooth.connect(owner)}>{bluetooth.status === 'connecting' ? 'Connecting…' : `Connect ${NAMES[owner]}'s band`}</Button>}
@@ -337,13 +362,21 @@ export default function PhoneScreen() {
             <Text style={styles.inputLabel}>BRIDGE ADDRESS</Text>
             <TextInput testID="bridge-url" accessibilityLabel="USB bridge address" value={bridgeDraft} onChangeText={setBridgeDraft} editable={!editorBusy} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.input} onSubmitEditing={configureBridge} />
             <Button disabled={editorBusy} onPress={configureBridge}>Save bridge address</Button>
-            <Text style={styles.tinyNote}>On this computer: http://localhost:8787. On a phone: use this computer’s network IP and port 8787 on the same Wi-Fi. Browser access and HTTPS settings must allow the connection.</Text>
+            <Text style={styles.tinyNote}>On this computer: http://localhost:8787. For Vercel, start the bridge with --allow-origin and this site's exact HTTPS origin, then allow local network access if prompted. On a phone, localhost means the phone: use Direct Bluetooth or an explicitly allowed LAN bridge.</Text>
             </>}
           </View>
         </View>
       </View>
       <Text style={styles.footer}>PULSEBAND · PREPARE TOGETHER. STAY TOGETHER.</Text>
     </View>
+    <Modal visible={!!showIncoming} transparent animationType="fade" onRequestClose={() => setHiddenIncomingKey(live.incoming?.key)}>
+      <View style={styles.modalOverlay}><View testID="incoming-band-popup" style={styles.modalCard}>
+        <Text style={[styles.cardLabel, { color: COLOURS[live.incoming?.from] }]}>FROM {NAMES[live.incoming?.from]?.toUpperCase()}</Text>
+        <Text accessibilityRole="header" accessibilityLiveRegion="assertive" style={styles.cardTitle}>{live.incoming?.text}</Text>
+        <Text style={styles.note}>Received by {NAMES[owner]}'s physical band. Tap the watch to dismiss its own popup.</Text>
+        <Button testID="hide-incoming" primary onPress={() => setHiddenIncomingKey(live.incoming?.key)}>Hide on this page</Button>
+      </View></View>
+    </Modal>
     <Modal visible={!!pendingLoad} transparent animationType="fade" onRequestClose={keepBrowserMessages}>
       <View style={styles.modalOverlay}><View testID="load-confirmation" style={styles.modalCard}>
         <Text accessibilityRole="header" style={styles.cardTitle}>Load {pendingLoad ? NAMES[pendingLoad.owner] : ''}'s band messages?</Text>
