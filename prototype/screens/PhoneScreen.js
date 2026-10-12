@@ -75,6 +75,16 @@ export default function PhoneScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (connected) return;
+    locationSession.current += 1;
+    if (watchId.current !== null) geolocation?.clearWatch(watchId.current);
+    watchId.current = null;
+    setWatching(false);
+    setLocating(false);
+    setLocation(null);
+  }, [connected, geolocation]);
+
   useEffect(() => { if (!live.incoming) setHiddenIncomingKey(null); }, [live.incoming?.key]);
 
   useEffect(() => {
@@ -256,6 +266,11 @@ export default function PhoneScreen() {
     const onError = error => {
       if (session !== locationSession.current || !mounted.current) return;
       const reason = error.code === 1 ? 'Location permission was denied. Allow access in your browser settings to try again.' : error.code === 2 ? 'Phone location is unavailable. Move somewhere with a clearer location signal and try again.' : 'Getting your phone location timed out. Try again.';
+      if (error.code === 1) {
+        if (watchId.current !== null) geolocation.clearWatch(watchId.current);
+        watchId.current = null;
+        setWatching(false);
+      }
       setLocating(false); setLocationNotice({ kind: 'error', text: reason });
     };
     const options = { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 };
