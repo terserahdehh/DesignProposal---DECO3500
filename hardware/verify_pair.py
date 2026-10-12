@@ -350,10 +350,11 @@ class PairVerifier:
             states = {owner: self.status(owner) for owner in OWNERS}
             for owner, state in states.items():
                 require(state.get("peerConnected") is True, f"{owner}: link disconnected during location expiry test")
-                require(state.get("view") == "find", f"{owner}: Find Direction screen changed during expiry test")
+                require(state.get("view") == "find", f"{owner}: Find Direction screen changed during expiry test (view={state.get('view')}, unread={state.get('unread')}, physicalTouchPresses={state.get('touchPresses')}); leave touchscreens untouched")
                 if not state.get("location", {}).get("valid") or not state.get("peerLocation", {}).get("valid"):
                     require("guidance" not in state, f"{owner}: stale location still produces guidance")
                     require(state.get("directionArrowVisible") is False, f"{owner}: stale location still displays an arrow")
+                    require(state.get('directionLight', {}).get('visible', False) is False, f'{owner}: stale location still glows')
             expired = all(state.get("location", {}).get("valid") is False
                           and state.get("peerLocation", {}).get("valid") is False
                           for state in states.values())
