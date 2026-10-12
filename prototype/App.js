@@ -13,6 +13,7 @@ import ControlButton from './components/ControlButton';
 import { createBluetoothService } from './utils/bluetooth';
 import { readIdentity, saveIdentity, friendsFor } from './utils/identity';
 import Icon from './components/Icon';
+import PhoneScreen from './screens/PhoneScreen';
 
 const FEEDBACK_LABELS = { incoming: 'Incoming message · short pulse', send: 'Message sent · short pulse', nearby: 'Friend very near · gentle pulse', sos: 'Group SOS · alert pulse' };
 
@@ -43,10 +44,12 @@ export default function App() {
   const [identity, setIdentity] = useState(readIdentity);
   const [choosing, setChoosing] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && /^\/phone\/?$/.test(window.location.pathname)) return <PhoneScreen />;
   if (!identity || choosing) return <ScrollView style={styles.page} contentContainerStyle={{ padding: 24, gap: 14, maxWidth: 500, width: '100%', alignSelf: 'center' }}>
     <Text style={styles.heading}>Who is wearing PulseBand?</Text>
     <Text style={styles.intro}>Choose one person for this phone. This is a local testing identity.</Text>
     {['nayaka', 'amy', 'nala', 'syifa'].map(id => <ControlButton key={id} label={FRIENDS.find(f => f.id === id).name} onPress={() => { setStorageWarning(!saveIdentity(id)); setIdentity(id); setChoosing(false); }} />)}
+    {Platform.OS === 'web' && <Text accessibilityRole="link" href="/phone" style={{ color: THEME.accent, paddingVertical: 12 }}>Prepare messages for your physical band ↗</Text>}
   </ScrollView>;
   return <PulseBandApp key={identity} identity={identity} storageWarning={storageWarning} onSwitch={() => setChoosing(true)} />;
 }
@@ -109,6 +112,7 @@ function PulseBandApp({ identity, onSwitch, storageWarning }) {
 
       <Text style={styles.intro}>Using PulseBand as {FRIENDS.find(f => f.id === identity).name}</Text>
       <ControlButton label="Switch user" onPress={onSwitch} />
+      {Platform.OS === 'web' && <Text accessibilityRole="link" href="/phone" style={{ color: THEME.accent, paddingVertical: 12 }}>Prepare messages for your physical band ↗</Text>}
       {storageWarning && <Text style={styles.note}>Storage unavailable. Select your identity again after refresh.</Text>}
       <BrowserPanel identity={identity} />
       <BluetoothPanel service={service} hardware={hardware} friends={friendsFor(identity)} friendId={hardwareFriend} onFriend={setHardwareFriend} />

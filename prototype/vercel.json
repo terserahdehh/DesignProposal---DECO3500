@@ -3,5 +3,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
-  "cleanUrls": true
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/phone", "destination": "/index.html" },
+    { "source": "/phone/", "destination": "/index.html" }
+  ]
 }
