@@ -23,11 +23,11 @@ import uuid
 
 
 OWNERS = ("nayaka", "syifa")
-DEFAULT_ORIGINS = frozenset(
+DEFAULT_ORIGINS = frozenset({"https://pulseband-steel.vercel.app"} | {
     f"http://{host}:{port}"
     for host in ("localhost", "127.0.0.1")
     for port in (3000, 5173, 8081, 19006)
-)
+})
 MAX_BODY_BYTES = 16384
 MAX_LINE_BYTES = 65536  # Includes optional USB framebuffer snapshots.
 LOG = logging.getLogger("pulseband.bridge")
@@ -439,6 +439,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 self._respond(200, {"ok": True, "bands": self.server.bridge.snapshots(), "transport": "usb", "locationSource": "phone"})
             elif action is None:
                 self._respond(200, self.server.bridge.snapshot(owner))
+            elif action == "frame":
+                # Capture the current LCD atomically through the existing USB
+                # connection. This does not navigate, change fixes or save data.
+                self._respond(200, self.server.bridge.command(owner, "frame_snapshot", {}))
             elif action == "events":
                 from urllib.parse import parse_qs
                 try:
@@ -487,7 +491,7 @@ def main(argv=None):
     parser.add_argument("--http-port", type=int, default=8787, help="HTTP port (default: 8787)")
     parser.add_argument("--port", action="append", default=[], help="USB serial port; repeat for both bands. Otherwise discover USB modem/serial ports.")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200)")
-    parser.add_argument("--allow-origin", action="append", default=[], help="Additional exact browser origin, e.g. http://192.168.1.10:8081. Known localhost development origins are already allowed.")
+    parser.add_argument("--allow-origin", action="append", default=[], help="Additional exact browser origin, e.g. http://192.168.1.10:8081. The PulseBand Vercel site and known localhost development origins are already allowed.")
     args = parser.parse_args(argv)
     try:
         import serial  # noqa: F401

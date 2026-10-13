@@ -9,6 +9,7 @@ import { describeBandStatus, initialTransportMode } from '../utils/bandStatus';
 import DirectionRing from '../components/DirectionRing';
 import { directionGlow } from '../utils/directionGlow';
 import { createLocationSharing, prefersPreciseLocation } from '../utils/locationSharing';
+import { describeLocationStatus } from '../utils/locationStatus';
 
 const NAMES = { nayaka: 'Nayaka', syifa: 'Syifa' };
 const COLOURS = { nayaka: THEME.purple, syifa: THEME.yellow };
@@ -67,6 +68,7 @@ export default function PhoneScreen() {
   const live = describeBandStatus(liveBand, owner, connected, statusReceivedAt, now);
   const showIncoming = live.incoming && live.incoming.key !== hiddenIncomingKey && !pendingLoad;
   const glow = live.mode === 'ready' ? directionGlow(liveBand.guidance.bearing, liveBand.guidance.metres) : null;
+  const directionDiameter = Math.max(100, Math.min(280, width - 112));
 
   useEffect(() => {
     const unsubscribe = phoneBluetooth.subscribe(next => { setBluetooth(next); setStatusReceivedAt(Date.now()); });
@@ -336,16 +338,20 @@ export default function PhoneScreen() {
             <Text style={styles.tinyNote}>Location requires HTTPS or localhost and separate Chrome/OS permission—even when Bluetooth is connected. Laptop locations may be coarse or identical; use each wearer’s own Android phone outdoors for moving-person guidance.</Text>
             <Text style={styles.tinyNote}>{prefersPreciseLocation() ? 'Phone mode requests high accuracy, with standard-provider fallback.' : 'Laptop mode uses the standard location provider first to avoid repeated precise-location timeouts.'} Reported accuracy is never altered.</Text>
             <Text style={styles.tinyNote}>Keep this page visible and the device awake. Automatic mode requests fresh fixes every 20 seconds, including while stationary, and retries when you return to the page. Browsers can suspend Bluetooth/location in the background; fixes expire after 60 seconds.</Text>
-            <Text style={styles.tinyNote}>Changed location readings are sent immediately and update the centered arrow and quarter-light when both fixes support a direction. USB does not increase location precision: centimetre-scale laptop movement may not produce a changed reading.</Text>
+            <Text style={styles.tinyNote}>Changed location readings update the centered arrow and quarter light when both fixes support a direction. USB shares the laptop’s position; moving only the ESP32 does not update it.</Text>
             <Text style={styles.tinyNote}>Switching wearer or connection stops browser updates. The previous band keeps its last fix until it expires; use Stop sharing location to request clearing.</Text>
           </View>
           <View testID="live-band-status" style={styles.card}>
             <Text style={styles.cardLabel}>LIVE PHYSICAL BAND</Text>
             <Text accessibilityRole="header" style={styles.cardTitle}>{NAMES[owner]}'s band</Text>
             <Text accessibilityLiveRegion="polite" style={styles.notice}>{live.peerConnected ? `${NAMES[owner === 'nayaka' ? 'syifa' : 'nayaka']} connected over ESP-NOW` : 'Paired band is offline or status is unavailable'}</Text>
+            {live.mode !== 'offline' && <View testID="band-location-details" style={styles.fixDetails}>{[
+              [owner, liveBand?.location], [owner === 'nayaka' ? 'syifa' : 'nayaka', liveBand?.peerLocation],
+            ].map(([id, fix]) => <View key={id} style={styles.fixRow}><Text style={styles.fixName}>{NAMES[id]}</Text><Text testID={`band-location-${id}`} style={styles.tinyNote}>{describeLocationStatus(fix, now).text}</Text></View>)}</View>}
             <Text testID="direction-title" style={styles.messageText}>{live.title}</Text>
             {!!live.detail && <Text testID="direction-detail" style={styles.note}>{live.detail}</Text>}
-            {glow && <View style={{ alignItems: 'center', marginVertical: 12 }}><DirectionRing diameter={200} colour={COLOURS[owner === 'nayaka' ? 'syifa' : 'nayaka']} arrow {...glow} /><Text style={styles.tinyNote}>North-up direction preview · brighter when closer</Text></View>}
+            {glow && <View style={styles.directionPreview}><Text style={styles.northLabel}>N · NORTH</Text><DirectionRing diameter={directionDiameter} colour={COLOURS[owner === 'nayaka' ? 'syifa' : 'nayaka']} arrow {...glow} /><Text style={[styles.tinyNote, styles.directionCaption]}>Quarter light points toward {NAMES[owner === 'nayaka' ? 'syifa' : 'nayaka']} · brighter when closer</Text></View>}
+            <Text testID="direction-resolution-note" style={styles.tinyNote}>0.5–1 m movements cannot be distinguished reliably when location uncertainty is larger than the movement. The arrow and quarter light follow usable device fixes, and remain hidden when fixes are missing, expired or too uncertain.</Text>
             {!!liveBand?.result && connected && <Text accessibilityLiveRegion="polite" style={styles.note}>Last band result: {liveBand.result}</Text>}
             {live.incoming && <Button onPress={() => setHiddenIncomingKey(null)}>Show incoming message</Button>}
             <Text style={styles.tinyNote}>Messages and SOS travel between the paired Nayaka and Syifa bands even when the website is closed. The arrow on the watch is north up; use a phone compass to orient yourself.</Text>
@@ -436,4 +442,6 @@ const styles = StyleSheet.create({
   previewCard: { alignItems: 'center', gap: 18 }, watchFrame: { width: 212, padding: 14, borderRadius: 31, backgroundColor: THEME.body, borderWidth: 3, borderColor: '#D4D2CE', gap: 12, boxShadow: '0 14px 28px #00000044' }, watchTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, led: { width: 10, height: 10, borderRadius: 5 }, watchOwner: { color: '#5D5870', fontSize: 9, fontWeight: '800', letterSpacing: 1.8 }, watchScreen: { minHeight: 160, padding: 16, backgroundColor: THEME.screen, borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 12 }, watchMessage: { color: '#FFFFFF', fontSize: 19, fontWeight: '800', lineHeight: 23, textAlign: 'center' }, watchCounter: { color: '#C1CAD8', fontSize: 10 }, watchButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, watchButton: { width: 48, backgroundColor: '#554763', borderColor: '#756682' }, watchOK: { color: '#62556D', fontSize: 12, fontWeight: '800', letterSpacing: 1.3 },
   bandStatuses: { gap: 8 }, bandStatus: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 7, borderBottomWidth: 1, borderBottomColor: '#203149', paddingBottom: 10, paddingTop: 5 }, statusName: { flexDirection: 'row', gap: 8, alignItems: 'center' }, statusDot: { width: 7, height: 7, borderRadius: 4 }, statusValue: { color: THEME.muted, fontSize: 12, lineHeight: 20 }, mac: { width: '100%', paddingLeft: 15, color: THEME.muted, fontSize: 10 },
   liveLocation: { color: '#86EFAC', fontSize: 12, lineHeight: 19 }, locationBox: { backgroundColor: '#0F2430', padding: 12, borderRadius: 8, gap: 5 }, locationText: { color: '#A8E5C5', fontSize: 14, fontVariant: ['tabular-nums'] }, footer: { color: '#8FA2BC', fontSize: 10, letterSpacing: 1.4, marginTop: 30, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#1D2C42' },
+  fixDetails: { gap: 12, borderBottomWidth: 1, borderBottomColor: '#203149', paddingBottom: 14 }, fixRow: { gap: 4 }, fixName: { color: THEME.text, fontSize: 13, fontWeight: '700' },
+  directionPreview: { alignItems: 'center', width: '100%', marginVertical: 12, gap: 10 }, northLabel: { color: THEME.secondary, fontSize: 11, letterSpacing: 1.4, fontWeight: '700' }, directionCaption: { textAlign: 'center', maxWidth: 300 },
 });

@@ -14,8 +14,8 @@
 #include "pairing_keys.h"
 #include "location_math.h"
 #include "touch_press.h"
-#include "direction_arc.h"
-#include "direction_arrow.h"
+#include "direction_visuals.h"
+#include "direction_layout.h"
 
 // Pin profile verified against Waveshare's ESP32-S3-Touch-LCD-1.28 demo.
 static const char *OWNERS[] = {"nayaka", "syifa"};
@@ -60,11 +60,11 @@ uint32_t touchReports=0;uint8_t lastTouchGesture=0,lastTouchEvent=0,lastTouchFin
 
 bool fresh(const Position &p) { return p.valid && uint32_t(millis()-p.received)<LOCATION_TTL; }
 bool peerConnected() { return lastPeer && uint32_t(millis()-lastPeer)<7000; }
-DirectionArc currentDirectionArc() {
-  if(view!="find"||!peerConnected()||!fresh(localPosition)||!fresh(peerPosition))return {false,0,90,0};
+DirectionVisuals currentDirectionVisuals() {
+  if(!fresh(localPosition)||!fresh(peerPosition))return directionVisuals(false,false,false,false,false,0,0);
   Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
   DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
-  return directionArc(true,true,true,true,q.usable,g.bearing,g.metres);
+  return directionVisuals(view=="find",peerConnected(),true,true,q.usable,g.bearing,g.metres);
 }
 void output(JsonDocument &doc) {
   doc["owner"]=OWNERS[SELF]; serializeJson(doc,Serial); Serial.println();
@@ -94,7 +94,8 @@ void status(JsonDocument &doc) {
   for(int i=0;i<presetCount;i++){auto p=items.createNestedObject();p["id"]=presets[i].id;p["text"]=presets[i].text;}
   positionJson(doc.createNestedObject("location"),localPosition);
   positionJson(doc.createNestedObject("peerLocation"),peerPosition);
-  doc["directionArrowVisible"]=false;
+  DirectionVisuals visuals=currentDirectionVisuals();
+  doc["directionArrowVisible"]=visuals.arrow.visible;
   if(fresh(localPosition)&&fresh(peerPosition)){
     Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
     DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
@@ -103,9 +104,8 @@ void status(JsonDocument &doc) {
     p["bearingUncertaintyDegrees"]=q.bearingUncertaintyDegrees;
     p["northReferenced"]=true;p["simulated"]=localPosition.simulated||peerPosition.simulated;
     if(std::isfinite(q.combinedAccuracyMetres))p["accuracy"]=q.combinedAccuracyMetres;
-    doc["directionArrowVisible"]=view=="find"&&peerConnected()&&q.usable;
   }
-  DirectionArc arc=currentDirectionArc();auto light=doc.createNestedObject("directionLight");
+  DirectionArc arc=visuals.light;auto light=doc.createNestedObject("directionLight");
   light["visible"]=arc.visible;light["colour"]=OTHER==0?"purple":"yellow";
   light["bearing"]=arc.bearing;light["spanDegrees"]=arc.spanDegrees;
   light["brightness"]=arc.brightness;light["northReferenced"]=true;
@@ -225,8 +225,10 @@ String accuracyText(double metres){
   return metres>=1000?"GPS +/- "+String(metres/1000,1)+" km":"GPS +/- "+String(metres,0)+" m";
 }
 void render(){
+  DirectionVisuals visuals=currentDirectionVisuals();
   frame.fillSprite(INK);frame.fillCircle(120,120,119,PAPER);frame.drawCircle(120,120,112,0xd69a);
-  frame.setTextDatum(MC_DATUM);frame.setTextColor(0x8c71,PAPER);frame.drawString("P U L S E B A N D",120,25,1);
+  RoundDisplayLabel branding=roundDisplayBranding();
+  frame.setTextDatum(MC_DATUM);frame.setTextColor(0x8c71,PAPER);frame.drawString(branding.text,branding.x,branding.y,branding.font);
   auto control=[](int x,const char *text){frame.fillRoundRect(x-23,50,46,31,9,0xc638);frame.setTextColor(INK,0xc638);frame.setTextDatum(MC_DATUM);frame.drawString(text,x,66,2);};
   control(57,"<");control(120,"OK");control(183,">");
   const int lx[]={48,192,48,192},ly[]={48,48,192,192};const uint16_t colors[]={PURPLE,0xf208,0x3666,YELLOW};
@@ -250,9 +252,9 @@ void render(){
     }else{
       Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
       DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
-      if(q.usable){
-        DirectionArrow arrow=directionArrow(g.bearing);
-        if(arrow.visible)frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,OTHER==0?PURPLE:YELLOW);
+      if(visuals.arrow.visible){
+        DirectionArrow arrow=visuals.arrow;
+        frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,OTHER==0?PURPLE:YELLOW);
         label(distanceText(g.metres)+" | ~"+String(g.bearing,0)+" deg N",120,114,0xbdf7,1);
         String accuracy=accuracyText(q.combinedAccuracyMetres);
         accuracy.replace("GPS accuracy > 10 km","GPS >10km");accuracy.replace(" km","km");accuracy.replace(" m","m");
@@ -261,14 +263,17 @@ void render(){
         label(distanceText(g.metres),120,128);label("GPS too uncertain",120,147,0xbdf7);
         label(accuracyText(q.combinedAccuracyMetres),120,160,0xbdf7,1);
       }
-      label((localPosition.simulated||peerPosition.simulated)?"SIMULATED LOCATION":"NORTH UP - phone GPS",120,q.usable?180:176,0xbdf7,1);
+      label((localPosition.simulated||peerPosition.simulated)?"SIMULATED LOCATION":"NORTH UP - phone GPS",120,visuals.arrow.visible?180:176,0xbdf7,1);
     }
   }else if(view=="sos"){
     label("SEND SOS?",120,115,0xf208,4);label("Press OK "+String(3-sosCount)+" more",120,144);label("< or > cancels",120,172,0xbdf7);
   }else {wrapped(result,125);label("OK to return",120,172,0xbdf7);}
   frame.fillTriangle(120,192,105,216,135,216,0xf208);frame.setTextColor(0xffff,0xf208);frame.setTextDatum(MC_DATUM);frame.drawString("!",120,205,2);
-  frame.setTextColor(0x7bef,PAPER);frame.drawString("TOGETHER, FURTHER.",120,222,1);
-  DirectionArc arc=currentDirectionArc();
+  frame.setTextColor(0x7bef,PAPER);
+  RoundDisplayLabel footerLeft=roundDisplayFooterLeft(),footerRight=roundDisplayFooterRight();
+  frame.drawString(footerLeft.text,footerLeft.x,footerLeft.y,footerLeft.font);
+  frame.drawString(footerRight.text,footerRight.x,footerRight.y,footerRight.font);
+  DirectionArc arc=visuals.light;
   if(arc.visible){
     uint16_t colour=OTHER==0?PURPLE:YELLOW;
     // North at the top, clockwise bearing. A 90-degree arc with a bright
@@ -276,8 +281,8 @@ void render(){
     for(int step=-90;step<=90;step++){
       double degrees=arc.bearing+step*0.5,angle=degrees*PI/180;
       double strength=arcStrengthAt(arc,degrees);
-      for(int radius=109;radius<=117;radius++){
-        double halo=(radius>=111&&radius<=115)?1.0:0.35;
+      for(int radius=DIRECTION_ARC_INNER_RADIUS;radius<=DIRECTION_ARC_OUTER_RADIUS;radius++){
+        double halo=(radius>=DIRECTION_ARC_CORE_INNER_RADIUS&&radius<=DIRECTION_ARC_CORE_OUTER_RADIUS)?1.0:0.35;
         int x=120+std::lround(std::sin(angle)*radius),y=120-std::lround(std::cos(angle)*radius);
         frame.drawPixel(x,y,arcColour565(colour,strength*halo));
       }

@@ -1,5 +1,8 @@
 const normalize = value => ((value % 360) + 360) % 360;
-const DIRECTION_ARROW_PATH = 'M50 20 L70 80 L50 65 L30 80 Z';
+// The symmetric outer diamond keeps the visible bounds centred at diagonal
+// bearings too. The broad head and narrow tail identify the pointing end.
+// Its radius also clears the quarter-ring's inner halo edge at 42.5 units.
+const DIRECTION_ARROW_PATH = 'M50 15 L75 50 L60 50 L50 85 L40 50 L25 50 Z';
 function directionGlow(bearing, metres) {
   if (!Number.isFinite(bearing) || !Number.isFinite(metres) || metres < 0) return null;
   return { bearing: normalize(bearing), spanDegrees: 90,

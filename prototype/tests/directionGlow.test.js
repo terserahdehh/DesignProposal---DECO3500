@@ -21,14 +21,35 @@ test('proximity brightness is monotonic and invalid distances show no glow', () 
 });
 
 test('large web arrow is centered in the compass and stays inside its quarter-ring at every rotation', () => {
-  assert.equal(DIRECTION_ARROW_PATH, 'M50 20 L70 80 L50 65 L30 80 Z');
   const numbers = DIRECTION_ARROW_PATH.match(/\d+/g).map(Number);
   const xs = [], ys = [];
   for (let i = 0; i < numbers.length; i += 2) {
     xs.push(numbers[i]); ys.push(numbers[i + 1]);
-    assert.ok(Math.hypot(numbers[i] - 50, numbers[i + 1] - 50) < 40);
+    for (let bearing = 0; bearing < 360; bearing += 45) {
+      const radians = bearing * Math.PI / 180;
+      const dx = numbers[i] - 50, dy = numbers[i + 1] - 50;
+      const x = dx * Math.cos(radians) - dy * Math.sin(radians);
+      const y = dx * Math.sin(radians) + dy * Math.cos(radians);
+      assert.ok(Math.hypot(x, y) < 42.5, 'arrow must clear the quarter-ring halo');
+    }
   }
   assert.equal((Math.min(...xs) + Math.max(...xs)) / 2, 50);
   assert.equal((Math.min(...ys) + Math.max(...ys)) / 2, 50);
-  assert.equal(Math.max(...ys) - Math.min(...ys), 60);
+  assert.ok(Math.max(...ys) - Math.min(...ys) >= 70, 'arrow must fill at least 70% of the compass height');
+  for (let bearing = 0; bearing < 360; bearing += 45) {
+    const radians = bearing * Math.PI / 180;
+    const rotated = xs.map((x, index) => ({
+      x: (x - 50) * Math.cos(radians) - (ys[index] - 50) * Math.sin(radians),
+      y: (x - 50) * Math.sin(radians) + (ys[index] - 50) * Math.cos(radians),
+    }));
+    for (const axis of ['x', 'y']) {
+      const values = rotated.map(point => point[axis]);
+      assert.ok(Math.abs(Math.min(...values) + Math.max(...values)) < 1e-10, 'visible bounds must remain centred at diagonal bearings');
+    }
+  }
+});
+
+test('reported half-metre changes update light brightness only outside the physical full-brightness range', () => {
+  assert.ok(directionGlow(90, 25.5).brightness < directionGlow(90, 25).brightness);
+  assert.equal(directionGlow(90, 1.5).brightness, directionGlow(90, 1).brightness);
 });

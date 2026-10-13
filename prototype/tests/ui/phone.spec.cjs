@@ -9,7 +9,7 @@ async function installBand(page) {
     const owner = 'nayaka';
     const commands = [];
     const band = { owner, peer: 'syifa', peerConnected: true, messages: [{ id: 'gate', text: 'Meet at Gate 2' }], unread: false,
-      location: { valid: true, timestamp: Date.now(), simulated: false }, peerLocation: { valid: true, timestamp: Date.now(), simulated: false },
+      location: { valid: true, timestamp: Date.now(), accuracy: 10, simulated: false }, peerLocation: { valid: true, timestamp: Date.now(), accuracy: 10, simulated: false },
       guidance: { available: true, usable: true, northReferenced: true, metres: 100, bearing: 90, accuracy: 20, bearingUncertaintyDegrees: 11.5 } };
     const notify = message => {
       const bytes = new TextEncoder().encode(`${JSON.stringify(message)}\n`);
@@ -164,12 +164,12 @@ test('custom popups, repeated messages, dismissal and direction expiry work on m
   const firstBrightness = Number(await arc.getAttribute('opacity'));
   await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, bearing: 0, metres: 25 } }));
   const arrow = page.getByTestId('direction-arrow');
-  await expect(arrow).toHaveAttribute('d', 'M50 20 L70 80 L50 65 L30 80 Z');
+  await expect(arrow).toBeVisible();
   const arrowBox = await arrow.boundingBox();
   const ringBox = await page.getByTestId('direction-ring').boundingBox();
   expect(Math.abs(arrowBox.x + arrowBox.width / 2 - ringBox.x - ringBox.width / 2)).toBeLessThan(1);
   expect(Math.abs(arrowBox.y + arrowBox.height / 2 - ringBox.y - ringBox.height / 2)).toBeLessThan(1);
-  expect(arrowBox.height).toBeGreaterThanOrEqual(119);
+  expect(arrowBox.height).toBeGreaterThanOrEqual(190);
   await expect(arc).not.toHaveAttribute('d', firstPath);
   expect(Number(await arc.getAttribute('opacity'))).toBeGreaterThan(firstBrightness);
   const incoming = sequence => page.evaluate(sequence => window.__band.notify({ type: 'message', owner: 'nayaka', from: 'syifa', text: 'Meet beside the stage', sequence }), sequence);
@@ -187,6 +187,66 @@ test('custom popups, repeated messages, dismissal and direction expiry work on m
   await expect(page.getByTestId('direction-detail')).not.toContainText('90°');
   await expect(page.getByTestId('direction-ring')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('large compass keeps its rotation anchor centred and responds to reported guidance updates', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await connect(page);
+  const ring = page.getByTestId('direction-ring');
+  const light = page.getByTestId('direction-quarter-light');
+  const update = guidance => page.evaluate(guidance => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, ...guidance } }), guidance);
+  await update({ bearing: 0, metres: 25 });
+  const initialPath = await light.getAttribute('d');
+  const initialOpacity = Number(await light.getAttribute('opacity'));
+  await update({ bearing: 0, metres: 25.5 });
+  await expect.poll(async () => Number(await light.getAttribute('opacity'))).toBeLessThan(initialOpacity);
+  await expect(light).toHaveAttribute('d', initialPath);
+  for (const bearing of [45, 90, 135, 180, 225, 270, 315]) {
+    await update({ bearing });
+    await expect(ring).toHaveAttribute('aria-label', new RegExp(`${bearing} degrees clockwise from north`));
+    const anchor = await page.getByTestId('direction-arrow-rotation').evaluate(element => {
+      const point = new DOMPoint(50, 50).matrixTransform(element.getScreenCTM());
+      const box = element.ownerSVGElement.getBoundingClientRect();
+      return { dx: point.x - box.x - box.width / 2, dy: point.y - box.y - box.height / 2 };
+    });
+    expect(Math.abs(anchor.dx)).toBeLessThan(1);
+    expect(Math.abs(anchor.dy)).toBeLessThan(1);
+    const arrowBox = await page.getByTestId('direction-arrow').boundingBox();
+    const ringBox = await ring.boundingBox();
+    expect(Math.abs(arrowBox.x + arrowBox.width / 2 - ringBox.x - ringBox.width / 2)).toBeLessThan(1);
+    expect(Math.abs(arrowBox.y + arrowBox.height / 2 - ringBox.y - ringBox.height / 2)).toBeLessThan(1);
+  }
+  await expect(light).not.toHaveAttribute('d', initialPath);
+  const ringBox = await ring.boundingBox();
+  expect(ringBox.width).toBeGreaterThanOrEqual(270);
+  expect(ringBox.x).toBeGreaterThanOrEqual(0);
+  expect(ringBox.x + ringBox.width).toBeLessThanOrEqual(390);
+  await expect(page.getByTestId('direction-resolution-note')).toContainText('0.5–1 m movements cannot be distinguished reliably');
+  await ring.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('large-direction-mobile.png') });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('both actual fix diagnostics explain coarse or expired locations without a nearby-distance claim', async ({ page }) => {
+  await page.clock.install();
+  await connect(page);
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status',
+    location: { valid: true, timestamp: Date.now() - 12000, accuracy: 13.928, simulated: false },
+    peerLocation: { valid: true, timestamp: Date.now() - 23000, accuracy: 40, simulated: false },
+    guidance: { ...window.__band.band.guidance, usable: false, metres: 0.5, accuracy: 53.928 } }));
+  await expect(page.getByTestId('band-location-nayaka')).toContainText('Fresh · 12 s old · reported accuracy ±13.93 m');
+  await expect(page.getByTestId('band-location-syifa')).toContainText('Fresh · 23 s old · reported accuracy ±40 m');
+  await expect(page.getByTestId('direction-detail')).toContainText('Actual distance is unknown');
+  await expect(page.getByTestId('direction-detail')).not.toContainText('0.5 m');
+  await expect(page.getByTestId('direction-ring')).toBeHidden();
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status',
+    location: { valid: true, timestamp: Date.now() - 61000, accuracy: 13.928, simulated: false },
+    peerLocation: { valid: false, timestamp: 0, accuracy: 0, simulated: false } }));
+  await expect(page.getByTestId('band-location-nayaka')).toContainText('Expired · 61 s old');
+  await expect(page.getByTestId('band-location-syifa')).toHaveText('No device location received.');
+  await expect(page.getByTestId('direction-title')).toContainText('Waiting for fresh locations');
+  await expect(page.getByTestId('direction-ring')).toBeHidden();
 });
 
 test('continuous phone location stops when Bluetooth disconnects', async ({ page, context }) => {

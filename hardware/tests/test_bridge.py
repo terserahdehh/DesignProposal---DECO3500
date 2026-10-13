@@ -26,6 +26,9 @@ class FakeSerial:
         self.reject = None
         self.partial = False
         self.fail_write = False
+        self.frame = {"width": 240, "height": 240, "encoding": "rgb565-rle",
+                      "view": "home", "incoming": "", "unread": False,
+                      "pixels": "e1000863"}
 
     def emit(self, message):
         encoded = (json.dumps(message) + "\n").encode()
@@ -51,6 +54,10 @@ class FakeSerial:
         if self.reject:
             self.emit({"type": "response", "id": command["id"], "owner": self.owner,
                        "ok": False, "error": self.reject})
+            return len(encoded)
+        if command["cmd"] == "frame_snapshot":
+            self.emit({"type": "response", "id": command["id"], "ok": True,
+                       "owner": self.owner, **self.frame})
             return len(encoded)
         if command["cmd"] == "presets":
             self.store["messages"] = command["messages"]
@@ -317,6 +324,87 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(status, 403)
         self.assertNotIn("Access-Control-Allow-Origin", headers)
         self.assertEqual(len(self.device.commands), 1)  # hello only; rejected origin never writes.
+
+    def test_production_origin_is_allowed_by_default_including_private_network_preflight(self):
+        origin = "https://pulseband-steel.vercel.app"
+        status, _, headers = self.request("OPTIONS", "/api/bands/nayaka/frame", origin=origin,
+                                          extra_headers={"Access-Control-Request-Method": "GET",
+                                                         "Access-Control-Request-Private-Network": "true"})
+        self.assertEqual(status, 204)
+        self.assertEqual(headers["Access-Control-Allow-Origin"], origin)
+        self.assertEqual(headers["Access-Control-Allow-Private-Network"], "true")
+        self.assertEqual(headers["Vary"], "Origin")
+        status, _, headers = self.request("GET", "/api/bands", origin=origin)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Access-Control-Allow-Origin"], origin)
+        status, result, headers = self.request("POST", "/api/bands/nayaka/status", {}, origin=origin)
+        self.assertEqual(status, 200)
+        self.assertTrue(result["ok"])
+        self.assertEqual(headers["Access-Control-Allow-Origin"], origin)
+
+    def test_production_origin_match_is_exact_and_other_sites_cannot_capture_frames(self):
+        for origin in ("http://pulseband-steel.vercel.app", "https://other-project.vercel.app",
+                       "https://pulseband-steel.vercel.app.untrusted.example"):
+            with self.subTest(origin=origin):
+                status, result, headers = self.request("GET", "/api/bands/nayaka/frame", origin=origin)
+                self.assertEqual(status, 403)
+                self.assertFalse(result["ok"])
+                self.assertNotIn("Access-Control-Allow-Origin", headers)
+        self.assertEqual(len(self.device.commands), 1)  # hello only.
+
+    def test_frame_get_reuses_verified_connection_and_preserves_current_band_state(self):
+        before = self.bridge.snapshot("nayaka")
+        stored = json.loads(json.dumps(self.device.store))
+        self.device.frame.update(view="find", pixels="0001ffffe0ff0863")
+        status, result, headers = self.request("GET", "/api/bands/nayaka/frame",
+                                               origin="https://pulseband-steel.vercel.app")
+        self.assertEqual(status, 200)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["owner"], "nayaka")
+        for field in ("width", "height", "encoding", "view", "pixels"):
+            self.assertEqual(result[field], self.device.frame[field])
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(self.device.commands[-1]["cmd"], "frame_snapshot")
+        self.assertEqual(set(self.device.commands[-1]), {"id", "cmd"})
+        self.assertIs(self.bridge.connections["nayaka"].device, self.device)
+        self.assertFalse(self.device.closed)
+        self.assertEqual(self.device.store, stored)
+        self.assertEqual(self.bridge.snapshot("nayaka"), before)
+        self.assertNotIn("pixels", result["band"])
+
+    def test_frame_get_handles_a_large_atomic_frame_without_truncation(self):
+        pixels = "0001ffff00010863" * 2500 + f"{240*240-5000:04x}0863"
+        self.assertGreater(len(pixels), 16384)
+        self.device.frame["pixels"] = pixels
+        status, result, _ = self.request("GET", "/api/bands/nayaka/frame")
+        self.assertEqual(status, 200)
+        self.assertEqual(result["pixels"], pixels)
+
+    def test_frame_errors_do_not_return_a_cached_image_or_claim_success(self):
+        status, result, _ = self.request("GET", "/api/bands/syifa/frame")
+        self.assertEqual(status, 503)
+        self.assertNotIn("pixels", result)
+        self.device.reject = "Frame is too complex for serial capture"
+        status, result, _ = self.request("GET", "/api/bands/nayaka/frame")
+        self.assertEqual(status, 502)
+        self.assertIn("too complex", result["error"])
+        self.assertNotIn("pixels", result)
+        self.device.reject = None
+        self.device.respond = False
+        status, result, _ = self.request("GET", "/api/bands/nayaka/frame")
+        self.assertEqual(status, 504)
+        self.assertFalse(result["ok"])
+        self.assertNotIn("pixels", result)
+
+    def test_frame_route_accepts_only_the_read_only_get_for_a_known_owner(self):
+        for method, path, body in (("GET", "/api/bands/amy/frame", None),
+                                   ("GET", "/api/bands/nayaka/frame/extra", None),
+                                   ("POST", "/api/bands/nayaka/frame", {})):
+            with self.subTest(method=method, path=path):
+                status, result, _ = self.request(method, path, body)
+                self.assertEqual(status, 404)
+                self.assertFalse(result["ok"])
+        self.assertEqual(len(self.device.commands), 1)  # routing rejects before USB writes.
 
     def test_save_empty_presets_reports_confirmed_band_state(self):
         status, result, _ = self.request("POST", "/api/bands/nayaka/presets", {"messages": []})

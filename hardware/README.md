@@ -23,7 +23,7 @@ These are touch controls drawn on the LCD. The board's BOOT/RESET buttons are no
 
 ## Prepare messages at `/phone`
 
-Start the web app from `prototype/` with `npm ci`, then `npm run web`. Open **http://localhost:8081/phone** and select Nayaka or Syifa. Connect that wearer's band using one of the methods below. On a new phone/browser, or after reconnecting, press **Load from band** to read its actual stored messages. The page verifies the responding owner and validates the returned list. If it differs from your browser list, or the message editor contains a draft, choose **Replace browser list** to import it or **Keep browser messages** to cancel. Cancelling preserves both the saved browser list and the unfinished draft; replacing also clears the draft.
+Open **https://pulseband-steel.vercel.app/phone** and select Nayaka or Syifa. The deployed page needs no local Expo server. For optional local development, install with `npm --prefix prototype ci`, run `npm --prefix prototype run web -- --port 8081`, and open **http://localhost:8081/phone**. Connect that wearer's band using one of the methods below. On a new phone/browser, or after reconnecting, press **Load from band** to read its actual stored messages. The page verifies the responding owner and validates the returned list. If it differs from your browser list, or the message editor contains a draft, choose **Replace browser list** to import it or **Keep browser messages** to cancel. Cancelling preserves both the saved browser list and the unfinished draft; replacing also clears the draft.
 
 Add, edit or delete messages in the browser, then press **Sync to Nayaka** or **Sync to Syifa** to save the selected wearer's list on their connected band. Local edits are saved separately for each wearer between visits; connecting, loading or editing does not automatically write presets to the band. Use manual **Sync** after making changes or reconnecting. Success is shown only after the correct band acknowledges saving the list in flash, so presets survive a restart. Delete every message and sync the empty list to clear the band's presets. The limit is eight messages of 40 printable ASCII characters; emoji are not supported by the firmware font.
 
@@ -40,13 +40,15 @@ hardware/.venv/bin/python hardware/bridge.py
 
 On `/phone`, choose **USB bridge** and keep `http://localhost:8787` as the bridge address. The bridge discovers the two ports and verifies the owner from firmware; it does not assign names by port order. Close the bridge before flashing or running the serial verification script.
 
-For the deployed website on this laptop, allow its exact origin when starting the bridge:
+The shared Vercel origin is allowed by default. Start the bridge without `--port` to discover both attached bands; `--port` restricts discovery to the specified device(s):
 
 ```bash
-hardware/.venv/bin/python hardware/bridge.py --allow-origin https://pulseband-steel.vercel.app
+hardware/.venv/bin/python hardware/bridge.py
 ```
 
 Open **https://pulseband-steel.vercel.app/phone**, select **USB bridge**, and use `http://localhost:8787`. Allow local network access if Chrome prompts for it. The bridge still runs locally on the laptop; Vercel does not run Python or access your USB ports. A preview deployment or custom domain needs its own exact `--allow-origin` value. Chrome's [Local Network Access permission](https://developer.chrome.com/blog/local-network-access) covers requests from HTTPS pages to loopback/LAN services. Other browser versions or managed browser policies may prevent those requests; Direct Bluetooth provides the alternative in supported browsers.
+
+See [bridge setup and live screen capture](BRIDGE.md) for fresh status requests and the read-only `/api/bands/{owner}/frame` endpoint. A framebuffer capture reads the current 240×240 screen pixels through the running bridge without changing messages, location or navigation.
 
 Hosted `/phone` defaults to **Direct Bluetooth**. Its **Live physical band** card shows ESP-NOW peer connection, distance/bearing and uncertainty after both phones share fresh positions. Incoming custom messages open a popup on the connected page as well as on the physical watch. **Hide on this page** hides only the browser popup; dismiss the watch popup on its touchscreen. Repeated messages remain distinct, including over USB. The page suppresses direction when locations expire, the peer is offline, or status stops arriving. Automatic browser location updates stop when the band disconnects.
 
@@ -61,6 +63,10 @@ The configured pair is fixed to Nayaka and Syifa's MAC addresses and encryption 
 The bands exchange coordinates and calculate approximate distance and bearing measured clockwise from north. The arrow is **north up**, not relative to the direction your wrist faces. Use a phone compass to orient yourself. The screen includes the combined position accuracy. Indoor GPS can be inaccurate; this is not indoor venue positioning. Positions expire after 60 seconds without an update, are not saved in flash, and are cleared by **Stop sharing location**. Location access requires HTTPS or localhost and permission from the browser. An HTTP page at a laptop's LAN address generally cannot obtain phone GPS. For mobile location use the HTTPS page and Direct Bluetooth.
 
 Direction quality uses the sum of both phones' reported accuracy radii. Guidance is suppressed when that sum reaches the measured separation, when positions are within one metre, or when inputs or antipodal geometry make the direction ambiguous. A usable direction includes an angular uncertainty estimate: at nearby distances, 100 m separation with 20 m combined reported accuracy gives approximately **±11.5°**. This estimate uses spherical geometry and does not account for wrist orientation or independently verify the phones' locations. Browser accuracy represents a reported 95% position radius; combining the radii does not establish a calibrated 95% confidence interval for the bearing. See the [W3C Geolocation specification](https://www.w3.org/TR/geolocation/#latitude-longitude-and-accuracy-attributes). This quality check cannot provide guaranteed indoor or wrist-relative tracking.
+
+Half-metre or one-metre movement cannot be reliably detected with these boards and the observed laptop fixes (about ±14–40 m). Moving an ESP32 while its location-source laptop stays still does not update its position. A usable arrow and the 90° quarter light follow the same north-referenced bearing; the light becomes brighter as a usable distance decreases from 200 m to 5 m, with brightness capped below 5 m. Neither visual is evidence of sub-metre tracking. Such tracking requires additional positioning hardware; wrist-relative arrows also require an absolute heading source.
+
+Firmware source now uses one visibility gate for the arrow and quarter light, and places branding/footer text clear of the light around the round display. A GitHub/Vercel website update does not install those firmware changes on the physical bands. Building firmware alone does not flash it. Keep the existing pairing key and saved presets when arranging any separately authorized firmware update.
 
 Only the explicit development command `demo_location` accepts demonstration coordinates. That path labels the firmware screen/status **SIMULATED LOCATION**. Ordinary `/phone` location requests use actual browser Geolocation and reject `simulated:true`. Verification scripts clear demo positions after their checks.
 
@@ -92,6 +98,8 @@ hardware/.venv/bin/esptool --port /dev/cu.usbmodem5B910342271 --baud 115200 writ
 ```
 
 ## Validation and protocol
+
+The October 13 direction update passed 113 Node tests, 15 isolated browser checks (plus three affected checks after the final arrow geometry change), 31 Python bridge tests, five native C++ direction/location/layout suites, and both Nayaka/Syifa firmware builds. Browser and serial doubles validate rendering, protocol behavior and invalid-data handling; they do not establish real tracking. The native layout suite reads the installed TFT_eSPI font bitmap and checks text against the rotating arc, SOS triangle and indicators. Live read-only USB checks verified both owners/MACs, peer heartbeats, saved presets and current 240×240 frames. Both live frames showed unavailable location, so reliable physical direction and sub-metre movement were not demonstrated. Firmware was built without upload.
 
 ```bash
 # From the repository root:
