@@ -1,5 +1,7 @@
 # Connect the other laptop directly to Vercel
 
+For the two-laptop, cable-connected demo, use [Syifa's USB + Vercel setup and GPT prompt](CONNECT_SYIFA.md). Each laptop shares its own device location; a cable does not add centimetre-scale tracking.
+
 The website is https://pulseband-steel.vercel.app/phone. Direct Bluetooth needs no local Expo server or Python bridge. Use one connected PulseBand tab per band in a supported Chrome browser. After a deployment, reload the actual connected tab, select its wearer again and reconnect: an already-open tab keeps running its previous JavaScript. Vercel updates the web app, not the ESP32 firmware.
 
 Select Nayaka on the laptop used by Nayaka, Syifa on the laptop used by Syifa, and connect the matching PulseBand. Press Keep location updated and allow location access in Chrome and the OS. Leave the page visible and the device awake. The larger arrow is centered in the physical watch's display panel and web direction preview. It appears only when both locations are fresh, the peer is connected and the location accuracy supports a bearing. Laptops may time out or produce overlapping fixes; each wearer's own phone outdoors is a better source for moving-person direction. The watch is north-up, not wrist-relative.

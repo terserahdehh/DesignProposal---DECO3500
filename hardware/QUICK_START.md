@@ -2,6 +2,8 @@
 
 For a ready-to-paste GPT prompt on the other laptop, see [connect directly to Vercel](NEXT_LAPTOP.md).
 
+For your cable-connected demo with Syifa on the other laptop, see [Syifa's USB + Vercel instructions and prompt](CONNECT_SYIFA.md). Run one bridge per laptop and choose different matching owners. Moving the USB watch alone does not move the laptop's reported location, and laptop location cannot reliably track centimetres.
+
 **Phone + Vercel:** Open https://pulseband-steel.vercel.app/phone in Chrome on Android. Choose Nayaka or Syifa, select Direct Bluetooth, and connect that person's matching PulseBand. Allow Bluetooth and location access. Each wearer uses their own phone and band; ordinary iPhone browsers do not support this Direct Bluetooth flow.
 
 **Add or change a popup message:** Connect, press Load from band, and confirm Replace browser list if asked. Type a message and press Add message, or use Edit/Delete. Press Sync to Nayaka/Syifa and wait for the band's acknowledgement. You can save eight messages with 40 printable characters each; use ordinary letters/punctuation rather than emoji. Saving a message in the browser alone does not update the watch. Preset changes need no GitHub push, reflash or Vercel redeployment.
