@@ -22,6 +22,12 @@ Do not reflash firmware, regenerate pairing keys, overwrite my messages, disconn
 
 The fix passed 104 Node tests, 11 browser UI protocol-double tests against the production export, 25 Python bridge tests, and a successful web export. New tests cover genuinely fresh stationary requests past 60 seconds, high-accuracy fallback preserving coarse accuracy, actionable permission denial/retry, latest-fix queuing, tab-resume requests, and ignoring late callbacks after stop/disconnect. Browser doubles do not validate the other laptop's actual location provider or physical Bluetooth.
 
+The production deployment `dpl_8Jbqgw9195QwNawkBBRGdS2YYBgN` reached READY and https://pulseband-steel.vercel.app was assigned to it. Both `/phone` and `/phone/` returned HTTP 200. Three new location browser tests also passed on this actual public URL, using Bluetooth/location doubles (no physical-band writes). Repeat these safe deployed-page checks from `prototype/` with:
+
+```bash
+PULSEBAND_UI_BASE_URL=https://pulseband-steel.vercel.app npx playwright test --grep 'stationary laptop|laptop high-accuracy|stopping sharing'
+```
+
 A read-only fresh USB status request confirmed Syifa's radio and paired peer were connected but neither wearer had a valid location at the time of inspection. Syifa's Bluetooth was not connected to this laptop then. No firmware, presets, pairing key or coordinates were modified by that check; no real remote-laptop GPS success is claimed.
 
 The acquisition behavior follows [getCurrentPosition options](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/getCurrentPosition) and [watchPosition change callbacks](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/watchPosition).
