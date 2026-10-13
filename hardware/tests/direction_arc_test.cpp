@@ -14,11 +14,14 @@ int main() {
   auto east = directionArc(true, true, true, true, true, 90, 100);
   assert(arcStrengthAt(east, 90) > arcStrengthAt(east, 45));
   assert(arcStrengthAt(east, 0) == 0);
-  auto near = directionArc(true, true, true, true, true, 90, 5);
-  auto medium = directionArc(true, true, true, true, true, 90, 50);
+  // Same logarithmic proximity curve as the measured-distance light and beeps.
+  auto near = directionArc(true, true, true, true, true, 90, PROXIMITY_NEAR_METRES);
+  auto medium = directionArc(true, true, true, true, true, 90, 5);
   auto far = directionArc(true, true, true, true, true, 90, 200);
   assert(near.brightness > medium.brightness && medium.brightness > far.brightness);
-  assert(near.brightness == 1 && far.brightness >= 0.19);
+  assert(near.brightness == 1 && std::abs(far.brightness - PROXIMITY_MIN_BRIGHTNESS) < 1e-12);
+  assert(directionArc(true, true, true, true, true, 90, 0.4).brightness >
+         directionArc(true, true, true, true, true, 90, 1.3).brightness);
   for (int blocked = 0; blocked < 5; ++blocked) {
     bool inputs[] = {true, true, true, true, true}; inputs[blocked] = false;
     auto off = directionArc(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], 90, 10);

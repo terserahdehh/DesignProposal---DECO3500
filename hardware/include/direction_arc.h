@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <stdint.h>
+#include "proximity.h"
 
 struct DirectionArc {
   bool visible;
@@ -14,8 +15,7 @@ inline DirectionArc directionArc(bool finding, bool connected, bool localFresh,
       !std::isfinite(bearing) || !std::isfinite(metres) || metres < 0) return arc;
   arc.visible = true;
   arc.bearing = std::fmod(std::fmod(bearing, 360.0) + 360.0, 360.0);
-  // Smooth increase across the useful festival range: full at 5 m, dim at 200 m.
-  arc.brightness = 1.0 - 0.8 * std::fmax(0.0, std::fmin(1.0, (metres - 5.0) / 195.0));
+  arc.brightness = proximityFeedback(true, metres).brightness;
   return arc;
 }
 

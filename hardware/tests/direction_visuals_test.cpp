@@ -36,8 +36,8 @@ int main() {
   auto quality = directionQuality(10, 14, 40);
   auto uncertain = directionVisuals(true, true, true, true, quality.usable, 90, 10);
   assert(!uncertain.arrow.visible && !uncertain.light.visible);
-  auto near = directionVisuals(true, true, true, true, true, 90, 5);
+  auto near = directionVisuals(true, true, true, true, true, 90, PROXIMITY_NEAR_METRES);
   auto far = directionVisuals(true, true, true, true, true, 90, 200);
-  assert(near.light.brightness == 1 && std::abs(far.light.brightness - 0.2) < 1e-12);
-  std::cout << "PASS: arrow/light share peer, freshness and accuracy gates; brightness unchanged\n";
+  assert(near.light.brightness == 1 && std::abs(far.light.brightness - PROXIMITY_MIN_BRIGHTNESS) < 1e-12);
+  std::cout << "PASS: arrow/light share peer, freshness and accuracy gates; proximity brightness curve\n";
 }

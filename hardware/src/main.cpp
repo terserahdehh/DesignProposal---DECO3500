@@ -16,6 +16,8 @@
 #include "touch_press.h"
 #include "direction_visuals.h"
 #include "direction_layout.h"
+#include "find_guidance.h"
+#include "pdr.h"
 
 // Pin profile verified against Waveshare's ESP32-S3-Touch-LCD-1.28 demo.
 static const char *OWNERS[] = {"nayaka", "syifa"};
@@ -57,14 +59,95 @@ uint32_t pendingSequence=0, pendingAt=0; int sendAttempts=0;
 String serialLine;
 uint32_t touchPresses=0,lastTouchAt=0;
 uint32_t touchReports=0;uint8_t lastTouchGesture=0,lastTouchEvent=0,lastTouchFingers=0;
+// Wi-Fi FTM ranging: each band answers as a hidden SoftAP and times the other.
+struct FtmReport { uint8_t status,frames; int8_t rssi; uint32_t at; FtmFrame frame[32]; };
+QueueHandle_t ftmQueue;
+volatile bool ftmBusy=false;
+uint32_t ftmStartedAt=0,ftmNextAt=0,ftmAttempts=0,ftmFailures=0;
+uint8_t peerResponder[6];bool rangingReady=false;int8_t lastRangeRssi=0;
+RangeTracker rangeTracker;
+BeepScheduler beeper;bool beepSounding=false,pulseOn=false;
+double demoBearing=NAN;  // labelled demo only; cleared when Find closes
+String i2cDevices;int imuWhoAmI=-1;
+#ifdef PULSE_BUZZER_PIN
+constexpr int BUZZER_CHANNEL=4;
+#endif
+// QMI8658 accelerometer/gyroscope on the shared I2C bus: +/-4 g, +/-512 dps, 112 Hz.
+constexpr uint8_t IMU_ADDRESS=0x6b;
+struct ImuSample { uint32_t micros; int16_t accel[3], gyro[3]; };
+QueueHandle_t imuQueue;bool imuReady=false,imuStreaming=false;uint32_t imuSamples=0;
+// Walk-to-find: the seeker's path (steps + turns) and ranges taken along it.
+WalkTracker walker;WalkRange walkRanges[WALK_MAX_SAMPLES];int walkCount=0;
+WalkFix walkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};
+bool imuWrite(uint8_t reg,uint8_t value){Wire.beginTransmission(IMU_ADDRESS);Wire.write(reg);Wire.write(value);return Wire.endTransmission()==0;}
+bool imuRead(uint8_t reg,uint8_t *out,uint8_t count){
+  Wire.beginTransmission(IMU_ADDRESS);Wire.write(reg);if(Wire.endTransmission(false)!=0)return false;
+  if(Wire.requestFrom(IMU_ADDRESS,count)!=count)return false;for(uint8_t i=0;i<count;i++)out[i]=Wire.read();return true;
+}
+bool imuInit(){
+  if(!imuWrite(0x60,0xb0))return false;delay(20);  // soft reset
+  // CTRL1 auto-increment/little endian; CTRL2 4 g; CTRL3 512 dps (both 112 Hz);
+  // CTRL5 low-pass at 13% of ODR; CTRL7 enables accelerometer and gyroscope.
+  return imuWrite(0x02,0x40)&&imuWrite(0x03,0x16)&&imuWrite(0x04,0x56)&&imuWrite(0x06,0x77)&&imuWrite(0x08,0x03);
+}
+void imuTask(void*){
+  TickType_t wake=xTaskGetTickCount();
+  for(;;){
+    uint8_t ready=0,raw[12];
+    if(imuRead(0x2e,&ready,1)&&(ready&0x03)==0x03&&imuRead(0x35,raw,12)){
+      ImuSample sample{micros(),{},{}};
+      for(int axis=0;axis<3;axis++){sample.accel[axis]=int16_t(raw[2*axis]|raw[2*axis+1]<<8);sample.gyro[axis]=int16_t(raw[6+2*axis]|raw[7+2*axis]<<8);}
+      xQueueSend(imuQueue,&sample,0);
+    }
+    vTaskDelayUntil(&wake,pdMS_TO_TICKS(4));
+  }
+}
+void processImu(){
+  ImuSample sample;
+  while(imuQueue&&xQueueReceive(imuQueue,&sample,0)==pdTRUE){
+    ImuReading reading{sample.micros,{},{}};
+    for(int axis=0;axis<3;axis++){reading.accel[axis]=sample.accel[axis]/8192.0;reading.gyro[axis]=sample.gyro[axis]/64.0;}
+    walker.update(reading);imuSamples++;
+    // Serial-only raw stream for tuning step detection; off unless requested.
+    if(imuStreaming)Serial.printf("M,%lu,%d,%d,%d,%d,%d,%d,%d\n",(unsigned long)sample.micros,sample.accel[0],sample.accel[1],sample.accel[2],sample.gyro[0],sample.gyro[1],sample.gyro[2],walker.steps());
+  }
+}
+void startWalk(){walker.reset();walkCount=0;walkFix=WalkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};}
+void addWalkRange(double metres){
+  if(!imuReady||!std::isfinite(metres))return;
+  const double x=walker.x(),y=walker.y();
+  // One averaged sample per spot, so standing still cannot push out the walk.
+  if(walkCount&&std::hypot(walkRanges[walkCount-1].x-x,walkRanges[walkCount-1].y-y)<0.3){
+    WalkRange &spot=walkRanges[walkCount-1];spot.metres=(spot.metres+metres)/2;
+  }else{
+    if(walkCount==WALK_MAX_SAMPLES){memmove(walkRanges,walkRanges+1,sizeof(WalkRange)*(WALK_MAX_SAMPLES-1));walkCount--;}
+    walkRanges[walkCount++]={x,y,metres};
+  }
+  walkFix=locateFromWalk(walkRanges,walkCount);
+}
+const char *walkHint(){
+  if(!imuReady)return "No motion sensor";
+  String reason=walkFix.reason;
+  if(reason=="turn")return "Now TURN and walk on";
+  if(reason=="inconsistent")return "Moved? Keep walking";
+  if(reason=="near")return "Very close: look around";
+  if(reason=="uncertain")return "Keep walking to aim";
+  return "WALK + TURN to aim";
+}
 
 bool fresh(const Position &p) { return p.valid && uint32_t(millis()-p.received)<LOCATION_TTL; }
 bool peerConnected() { return lastPeer && uint32_t(millis()-lastPeer)<7000; }
-DirectionVisuals currentDirectionVisuals() {
-  if(!fresh(localPosition)||!fresh(peerPosition))return directionVisuals(false,false,false,false,false,0,0);
-  Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
-  DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
-  return directionVisuals(view=="find",peerConnected(),true,true,q.usable,g.bearing,g.metres);
+FindGuidance currentGuidance(DirectionQuality *quality=nullptr) {
+  bool localFresh=fresh(localPosition),peerFresh=fresh(peerPosition);
+  Guidance g{NAN,NAN};DirectionQuality q{false,NAN,180};
+  if(localFresh&&peerFresh){g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);}
+  if(quality)*quality=q;
+  FindInputs inputs{view=="find",peerConnected(),localFresh,peerFresh,g.metres,g.bearing,q,rangeTracker.reading(millis()),demoBearing};
+  if(walkFix.valid){
+    inputs.walkBearing=walkArrowBearing(walkFix,walker.x(),walker.y(),walker.headingDegrees());
+    inputs.walkUncertaintyDegrees=walkFix.uncertaintyFrom(walker.x(),walker.y());
+  }
+  return findGuidance(inputs);
 }
 void output(JsonDocument &doc) {
   doc["owner"]=OWNERS[SELF]; serializeJson(doc,Serial); Serial.println();
@@ -79,7 +162,50 @@ void positionJson(JsonObject out, const Position &p) {
   out["valid"]=fresh(p); out["lat"]=p.lat; out["lon"]=p.lon; out["accuracy"]=p.accuracy;
   out["timestamp"]=p.timestamp; out["simulated"]=p.simulated;
 }
-void status(JsonDocument &doc) {
+void hardwareJson(JsonDocument &doc) {
+  auto sensors=doc.createNestedObject("sensors");
+  sensors["touch"]=touchAvailable?"CST816S":nullptr;
+  auto imu=sensors.createNestedObject("imu");imu["present"]=imuWhoAmI==0x05;imu["model"]="QMI8658";imu["whoAmI"]=imuWhoAmI;
+  imu["provides"]="accelerometer, gyroscope";
+  sensors["i2c"]=i2cDevices;sensors["magnetometer"]=false;sensors["gps"]=false;
+  sensors["ranging"]=rangingReady?"wifi-ftm":nullptr;sensors["rangingResponder"]=WiFi.softAPmacAddress();
+  auto heading=doc.createNestedObject("heading");heading["available"]=false;
+  heading["reason"]="No magnetometer or direction-finding radio: GPS arrows are north-up; walk estimates are relative to turns since Find opened";
+  auto audio=doc.createNestedObject("audio");
+#ifdef PULSE_BUZZER_PIN
+  audio["output"]="gpio-buzzer";audio["pin"]=PULSE_BUZZER_PIN;
+#else
+  audio["output"]="none";audio["reason"]="No buzzer or speaker is fitted; build with PULSE_BUZZER_PIN to drive one";
+#endif
+}
+void measurementJson(JsonDocument &doc,const FindGuidance &g) {
+  RangeReading r=rangeTracker.reading(millis());
+  auto range=doc.createNestedObject("range");
+  range["method"]="wifi-ftm";range["valid"]=r.valid;range["state"]=rangingReady?r.state:"unavailable";
+  if(r.valid){range["metres"]=r.metres;range["uncertaintyMetres"]=r.uncertaintyMetres;}
+  range["ageMillis"]=r.ageMillis;range["sessions"]=r.sessions;range["rssi"]=lastRangeRssi;
+  range["attempts"]=ftmAttempts;range["failures"]=ftmFailures;range["calibratedUpToMetres"]=RANGE_CALIBRATED_UP_TO_METRES;
+  auto proximity=doc.createNestedObject("proximity");
+  proximity["active"]=g.proximity.active;proximity["source"]=distanceSourceName(g.source);
+  if(g.proximity.active){proximity["metres"]=g.metres;proximity["uncertaintyMetres"]=g.uncertaintyMetres;proximity["brightness"]=g.proximity.brightness;}
+  proximity["beepIntervalMillis"]=g.beepIntervalMs;
+#ifdef PULSE_BUZZER_PIN
+  proximity["audible"]=g.beepIntervalMs>0;
+#else
+  proximity["audible"]=false;
+#endif
+  auto find=doc.createNestedObject("find");
+  find["mode"]=findModeName(g.mode);find["ring"]=ringShapeName(g.ring);find["directionUsable"]=g.directionUsable;
+  if(g.directionUsable)find["bearing"]=g.bearing;
+  find["demoDirection"]=g.demoDirection;if(g.demoDirection)find["demoBearing"]=g.demoBearing;
+  find["walkEstimate"]=g.walkEstimate;
+  if(g.walkEstimate){find["walkBearing"]=g.visuals.light.bearing;find["walkUncertaintyDegrees"]=g.walkUncertaintyDegrees;}
+  auto walk=find.createNestedObject("walk");
+  walk["state"]=imuReady?walkFix.reason:"no-imu";walk["samples"]=walkCount;walk["steps"]=walker.steps();
+  walk["headingDegrees"]=walker.headingDegrees();walk["x"]=walker.x();walk["y"]=walker.y();
+}
+void status(JsonDocument &doc,bool full=true) {
+  if(full)hardwareJson(doc);
   doc["mac"]=WiFi.macAddress(); doc["peer"]=OWNERS[OTHER]; doc["peerConnected"]=peerConnected();
   doc["uptimeMillis"]=millis();
   doc["model"]="ESP32-S3-Touch-LCD-1.28"; doc["touchAvailable"]=touchAvailable;
@@ -94,21 +220,23 @@ void status(JsonDocument &doc) {
   for(int i=0;i<presetCount;i++){auto p=items.createNestedObject();p["id"]=presets[i].id;p["text"]=presets[i].text;}
   positionJson(doc.createNestedObject("location"),localPosition);
   positionJson(doc.createNestedObject("peerLocation"),peerPosition);
-  DirectionVisuals visuals=currentDirectionVisuals();
-  doc["directionArrowVisible"]=visuals.arrow.visible;
+  FindGuidance g=currentGuidance();
+  measurementJson(doc,g);
+  doc["directionArrowVisible"]=g.visuals.arrow.visible;
   if(fresh(localPosition)&&fresh(peerPosition)){
-    Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
-    DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
-    auto p=doc.createNestedObject("guidance");p["metres"]=g.metres;p["available"]=true;p["usable"]=q.usable;
-    if(q.usable)p["bearing"]=g.bearing;
+    Guidance fixes=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
+    DirectionQuality q=directionQuality(fixes.metres,localPosition.accuracy,peerPosition.accuracy);
+    auto p=doc.createNestedObject("guidance");p["metres"]=fixes.metres;p["available"]=true;p["usable"]=q.usable;
+    if(q.usable)p["bearing"]=fixes.bearing;
     p["bearingUncertaintyDegrees"]=q.bearingUncertaintyDegrees;
     p["northReferenced"]=true;p["simulated"]=localPosition.simulated||peerPosition.simulated;
     if(std::isfinite(q.combinedAccuracyMetres))p["accuracy"]=q.combinedAccuracyMetres;
   }
-  DirectionArc arc=visuals.light;auto light=doc.createNestedObject("directionLight");
-  light["visible"]=arc.visible;light["colour"]=OTHER==0?"purple":"yellow";
-  light["bearing"]=arc.bearing;light["spanDegrees"]=arc.spanDegrees;
-  light["brightness"]=arc.brightness;light["northReferenced"]=true;
+  auto light=doc.createNestedObject("directionLight");
+  light["visible"]=g.ring!=RingShape::None;light["shape"]=ringShapeName(g.ring);light["colour"]=OTHER==0?"purple":"yellow";
+  light["brightness"]=g.ring==RingShape::Full?g.proximity.brightness:g.visuals.light.brightness;
+  if(g.ring==RingShape::Quarter){light["bearing"]=g.visuals.light.bearing;light["spanDegrees"]=g.visuals.light.spanDegrees;}
+  light["northReferenced"]=g.ring==RingShape::Quarter&&g.directionUsable;light["demo"]=g.demoDirection;
 }
 Packet packet(Kind kind,uint32_t sequence=0) { Packet p{};p.magic=MAGIC;p.version=1;p.kind=kind;p.owner=SELF;p.sequence=sequence;return p; }
 bool transmit(const Packet &p) { return radioReady && esp_now_send(MACS[OTHER],reinterpret_cast<const uint8_t*>(&p),sizeof(p))==ESP_OK; }
@@ -156,6 +284,56 @@ void processRadio() {
     else if(p.kind==CLEAR_LOCATION){peerPosition.valid=false;dirty=true;}
   }
 }
+void onFtmReport(arduino_event_t *event){
+  // Runs on the Wi-Fi event task; copy the frames and free the report here.
+  static FtmReport report;
+  wifi_event_ftm_report_t *source=&event->event_info.wifi_ftm_report;
+  report.status=source->status;report.at=millis();report.frames=0;report.rssi=0;
+  if(source->ftm_report_data){
+    int count=source->ftm_report_num_entries>32?32:source->ftm_report_num_entries;int rssiSum=0;
+    for(int i=0;i<count;i++){auto &d=source->ftm_report_data[i];report.frame[i]={d.t1,d.t2,d.t3,d.t4};rssiSum+=d.rssi;}
+    report.frames=count;if(count)report.rssi=rssiSum/count;
+    free(source->ftm_report_data);source->ftm_report_data=nullptr;
+  }
+  xQueueSend(ftmQueue,&report,0);ftmBusy=false;
+}
+void rangeEvent(const FtmReport &report,const RangeSession &session){
+  // Serial-only telemetry for live accuracy/latency checks; not sent over BLE.
+  RangeReading reading=rangeTracker.reading(report.at);FindGuidance g=currentGuidance();
+  StaticJsonDocument<512> doc;doc["type"]="range";doc["owner"]=OWNERS[SELF];doc["t"]=report.at;
+  doc["status"]=report.status;doc["frames"]=session.frames;doc["rssi"]=report.rssi;
+  if(session.valid)doc["rawMetres"]=session.rawMetres;
+  doc["valid"]=reading.valid;doc["state"]=reading.state;
+  if(reading.valid){doc["metres"]=reading.metres;doc["uncertaintyMetres"]=reading.uncertaintyMetres;}
+  doc["mode"]=findModeName(g.mode);doc["view"]=view;doc["ring"]=ringShapeName(g.ring);
+  doc["brightness"]=g.ring==RingShape::Full?g.proximity.brightness:g.visuals.light.brightness;
+  doc["beepIntervalMillis"]=g.beepIntervalMs;
+  auto walk=doc.createNestedObject("walk");
+  walk["state"]=walkFix.reason;walk["samples"]=walkCount;walk["steps"]=walker.steps();
+  walk["heading"]=walker.headingDegrees();walk["x"]=walker.x();walk["y"]=walker.y();
+  if(g.walkEstimate){walk["bearing"]=g.visuals.light.bearing;walk["uncertainty"]=g.walkUncertaintyDegrees;}
+  serializeJson(doc,Serial);Serial.println();
+}
+void processRanging(){
+  FtmReport report;
+  while(xQueueReceive(ftmQueue,&report,0)==pdTRUE){
+    RangeSession session=report.status==FTM_STATUS_SUCCESS?rangeSession(report.frame,report.frames):RangeSession{false,NAN,0};
+    if(!session.valid)ftmFailures++;
+    if(report.frames)lastRangeRssi=report.rssi;
+    rangeTracker.addSession(session,report.at);
+    if(view=="find"){dirty=true;if(session.valid)addWalkRange(calibratedRangeMetres(session.rawMetres));}
+    rangeEvent(report,session);
+  }
+  uint32_t now=millis();
+  if(ftmBusy&&now-ftmStartedAt>3000){ftmBusy=false;ftmFailures++;rangeTracker.addSession({false,NAN,0},now);}
+  if(!rangingReady||ftmBusy||int32_t(now-ftmNextAt)<0)return;
+  wifi_ftm_initiator_cfg_t config{};memcpy(config.resp_mac,peerResponder,6);
+  config.channel=1;config.frm_count=16;config.burst_period=2;
+  // Jitter keeps the two bands from starting sessions in lock step.
+  ftmStartedAt=now;ftmNextAt=now+500+esp_random()%200;ftmAttempts++;
+  if(esp_wifi_ftm_initiate_session(&config)==ESP_OK)ftmBusy=true;
+  else{ftmFailures++;rangeTracker.addSession({false,NAN,0},now);}
+}
 void button(const String &key) {
   if(unread){unread=false;incoming="";view=previousView;dirty=true;event("dismissed");return;}
   if(key=="sos"){view="sos";sosCount=0;}
@@ -167,12 +345,15 @@ void button(const String &key) {
   }else if(view=="menu"){
     if(key=="back")menuIndex=(menuIndex+presetCount)%(presetCount+1);
     else if(key=="next")menuIndex=(menuIndex+1)%(presetCount+1);
-    else if(menuIndex==0){view="find";transmit(packet(LOCATION_REQUEST));}
+    else if(menuIndex==0){view="find";startWalk();transmit(packet(LOCATION_REQUEST));}
     else view="confirm";
   }else if(view=="confirm"){
     if(key=="ok"){if(!sendMessage(presets[menuIndex-1].text)){view="result";result=pendingSequence?"Please wait":"Peer offline";}}
     else view="menu";
+  }else if(view=="find"&&(key=="back"||key=="next")){
+    demoBearing=nextDemoBearing(demoBearing,key=="next"?1:-1);
   }else view="home";
+  if(view!="find")demoBearing=NAN;
   dirty=true;
 }
 String touchButton(int x,int y) {
@@ -218,15 +399,33 @@ void wrapped(const String &text,int y,uint16_t color=0xffff){
   if(lines.size()>2){font=1;lines=wrapLines(text,font);}
   for(const auto &line:lines){label(line,120,y,color,font);y+=font==2?17:13;}
 }
-String distanceText(double metres){return metres>=1000?"~"+String(metres/1000,1)+" km":"~"+String(metres,0)+" m";}
+String rangeStateText(){
+  if(!rangingReady)return "Wi-Fi ranging unavailable";
+  String state=rangeTracker.reading(millis()).state;
+  return state=="no_response"?"Wi-Fi ranging: no reply":"Wi-Fi ranging: "+state;
+}
 String accuracyText(double metres){
   if(!std::isfinite(metres))return "GPS accuracy unavailable";
   if(metres>=10000)return "GPS accuracy > 10 km";
   return metres>=1000?"GPS +/- "+String(metres/1000,1)+" km":"GPS +/- "+String(metres,0)+" m";
 }
+FindMode renderedMode=FindMode::Offline;RingShape renderedRing=RingShape::None;
 void render(){
-  DirectionVisuals visuals=currentDirectionVisuals();
-  frame.fillSprite(INK);frame.fillCircle(120,120,119,PAPER);frame.drawCircle(120,120,112,0xd69a);
+  DirectionQuality quality;FindGuidance g=currentGuidance(&quality);
+  renderedMode=g.mode;renderedRing=g.ring;
+  const uint16_t peerColour=OTHER==0?PURPLE:YELLOW;
+  // With no buzzer fitted, the ring flashes on each beep and dims between.
+  const double pulse=g.beepIntervalMs?(pulseOn?1.0:0.35):1.0;
+  frame.fillSprite(INK);frame.fillCircle(120,120,119,PAPER);
+  if(g.ring==RingShape::Full){
+    // Uniform proximity ring that points nowhere: halo, core, halo, as exact
+    // concentric circles under the face so edges stay clean.
+    const double b=g.proximity.brightness*pulse;
+    frame.fillCircle(120,120,DIRECTION_ARC_OUTER_RADIUS,arcColour565(peerColour,b*0.35));
+    frame.fillCircle(120,120,DIRECTION_ARC_CORE_OUTER_RADIUS,arcColour565(peerColour,b));
+    frame.fillCircle(120,120,DIRECTION_ARC_CORE_INNER_RADIUS-1,arcColour565(peerColour,b*0.35));
+    frame.fillCircle(120,120,DIRECTION_ARC_INNER_RADIUS-1,PAPER);
+  }else frame.drawCircle(120,120,112,0xd69a);
   RoundDisplayLabel branding=roundDisplayBranding();
   frame.setTextDatum(MC_DATUM);frame.setTextColor(0x8c71,PAPER);frame.drawString(branding.text,branding.x,branding.y,branding.font);
   auto control=[](int x,const char *text){frame.fillRoundRect(x-23,50,46,31,9,0xc638);frame.setTextColor(INK,0xc638);frame.setTextDatum(MC_DATUM);frame.drawString(text,x,66,2);};
@@ -244,26 +443,38 @@ void render(){
   }else if(view=="incoming"){
     label("FROM "+String(NAMES[OTHER]),120,106,OTHER==0?PURPLE:YELLOW);wrapped(incoming,127);label("Tap to dismiss",120,177,0xbdf7);
   }else if(view=="find"){
-    label("FIND "+String(NAMES[OTHER]),120,103,OTHER==0?PURPLE:YELLOW);
-    if(!peerConnected()){
+    label("FIND "+String(NAMES[OTHER]),120,103,peerColour);
+    char distance[40],detail[48];formatFindDistance(g,distance,sizeof(distance));formatFindUncertainty(g,detail,sizeof(detail));
+    bool simulated=localPosition.simulated||peerPosition.simulated;
+    if(g.mode==FindMode::Offline){
       label("Peer offline",120,130);label("Keep both bands powered",120,154,0xbdf7,1);
-    }else if(!fresh(localPosition)||!fresh(peerPosition)){
-      label("Location unavailable",120,130);label("Share both on /phone",120,154,0xbdf7);label("No GPS on this band",120,174,0xbdf7,1);
+    }else if(g.mode==FindMode::Direction){
+      DirectionArrow arrow=g.visuals.arrow;
+      frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
+      label(simulated?"SIMULATED LOCATION":"NORTH UP ~"+String(g.bearing,0)+" deg +/-"+String(quality.bearingUncertaintyDegrees,0),120,114,0xbdf7,1);
+      label(distance,120,172,0xffff,2);label(detail,120,183,0xbdf7,1);
+    }else if(g.mode==FindMode::WalkEstimate){
+      DirectionArrow arrow=g.visuals.arrow;
+      frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
+      label("WALK ESTIMATE +/-"+String(g.walkUncertaintyDegrees,0)+" deg",120,114,0x07ff,1);
+      label(distance,120,172,0xffff,2);label(detail,120,183,0xbdf7,1);
+    }else if(g.mode==FindMode::DemoDirection){
+      DirectionArrow arrow=g.visuals.arrow;
+      frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
+      label("DEMO - NOT MEASURED",120,114,0xfd20,1);
+      String measured=String(detail);measured.replace(" Wi-Fi timing"," WiFi");
+      label(distance,120,172,0xffff,2);label(measured+" | < > turn",120,183,0xbdf7,1);
+    }else if(g.mode==FindMode::DistanceOnly){
+      label(distance,120,128,peerColour,4);label(detail,120,150,0xbdf7,1);
+      label(walkHint(),120,161,0x07ff,1);label("Closer = brighter, faster",120,172,0xbdf7,1);
+      label("< > : demo direction",120,183,0xbdf7,1);
+    }else if(g.mode==FindMode::Uncertain){
+      label(distance,120,126);label("GPS too uncertain",120,145,0xbdf7);
+      label(accuracyText(quality.combinedAccuracyMetres),120,160,0xbdf7,1);
+      label(simulated?"SIMULATED LOCATION":rangeStateText(),120,172,0xbdf7,1);
     }else{
-      Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
-      DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
-      if(visuals.arrow.visible){
-        DirectionArrow arrow=visuals.arrow;
-        frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,OTHER==0?PURPLE:YELLOW);
-        label(distanceText(g.metres)+" | ~"+String(g.bearing,0)+" deg N",120,114,0xbdf7,1);
-        String accuracy=accuracyText(q.combinedAccuracyMetres);
-        accuracy.replace("GPS accuracy > 10 km","GPS >10km");accuracy.replace(" km","km");accuracy.replace(" m","m");
-        label(accuracy+" | +/-"+String(q.bearingUncertaintyDegrees,0)+"deg",120,170,0xbdf7,1);
-      }else{
-        label(distanceText(g.metres),120,128);label("GPS too uncertain",120,147,0xbdf7);
-        label(accuracyText(q.combinedAccuracyMetres),120,160,0xbdf7,1);
-      }
-      label((localPosition.simulated||peerPosition.simulated)?"SIMULATED LOCATION":"NORTH UP - phone GPS",120,visuals.arrow.visible?180:176,0xbdf7,1);
+      label(distance,120,126);label(rangeStateText(),120,146,0xbdf7,1);
+      label("Share both on /phone",120,160,0xbdf7,1);label("No GPS or compass on band",120,172,0xbdf7,1);
     }
   }else if(view=="sos"){
     label("SEND SOS?",120,115,0xf208,4);label("Press OK "+String(3-sosCount)+" more",120,144);label("< or > cancels",120,172,0xbdf7);
@@ -273,18 +484,17 @@ void render(){
   RoundDisplayLabel footerLeft=roundDisplayFooterLeft(),footerRight=roundDisplayFooterRight();
   frame.drawString(footerLeft.text,footerLeft.x,footerLeft.y,footerLeft.font);
   frame.drawString(footerRight.text,footerRight.x,footerRight.y,footerRight.font);
-  DirectionArc arc=visuals.light;
-  if(arc.visible){
-    uint16_t colour=OTHER==0?PURPLE:YELLOW;
+  if(g.ring==RingShape::Quarter){
+    DirectionArc arc=g.visuals.light;
     // North at the top, clockwise bearing. A 90-degree arc with a bright
     // centre and feathered ends; the remaining circumference stays neutral.
     for(int step=-90;step<=90;step++){
       double degrees=arc.bearing+step*0.5,angle=degrees*PI/180;
-      double strength=arcStrengthAt(arc,degrees);
+      double strength=arcStrengthAt(arc,degrees)*pulse;
       for(int radius=DIRECTION_ARC_INNER_RADIUS;radius<=DIRECTION_ARC_OUTER_RADIUS;radius++){
         double halo=(radius>=DIRECTION_ARC_CORE_INNER_RADIUS&&radius<=DIRECTION_ARC_CORE_OUTER_RADIUS)?1.0:0.35;
         int x=120+std::lround(std::sin(angle)*radius),y=120-std::lround(std::cos(angle)*radius);
-        frame.drawPixel(x,y,arcColour565(colour,strength*halo));
+        frame.drawPixel(x,y,arcColour565(peerColour,strength*halo));
       }
     }
   }
@@ -310,7 +520,7 @@ bool loadPresets(JsonArrayConst items){
   for(int i=0;i<n;i++)presets[i]=next[i];presetCount=n;menuIndex=0;previousView="home";if(view=="confirm"||view=="menu")view="home";dirty=true;return true;
 }
 void command(const String &line){
-  DynamicJsonDocument request(3072);DynamicJsonDocument reply(4096);
+  DynamicJsonDocument request(3072);DynamicJsonDocument reply(6144);
   if(deserializeJson(request,line)){reply["type"]="response";reply["ok"]=false;reply["error"]="Invalid JSON";output(reply);return;}
   reply["type"]="response";reply["id"]=request["id"];reply["ok"]=true;
   if(request.containsKey("owner") && String(request["owner"].as<const char*>())!=OWNERS[SELF]){reply["ok"]=false;reply["error"]="Wrong band owner";output(reply);return;}
@@ -352,6 +562,8 @@ void command(const String &line){
       if(capture.overflowed()){reply["ok"]=false;reply["error"]="Frame capture allocation failed";}
       else{output(capture);return;}
     }
+  }else if(cmd=="imu_stream"){
+    imuStreaming=request["on"]|false;reply["imuReady"]=imuReady;reply["imuSamples"]=imuSamples;
   }else if(cmd=="frame_row"){
     int row=request["row"]|-1;if(row<0||row>=240){reply["ok"]=false;reply["error"]="Invalid row";}else{if(dirty)render();String data;data.reserve(960);char hex[5];for(int x=0;x<240;x++){snprintf(hex,5,"%04x",frame.readPixel(x,row));data+=hex;}reply["pixels"]=data;}
   }else{reply["ok"]=false;reply["error"]="Unknown command";}
@@ -437,25 +649,62 @@ void setup(){
     Wire.beginTransmission(0x15);Wire.write(0xfa);Wire.write(0x70);touchAvailable=Wire.endTransmission()==0&&configured;
   }
   pinMode(5,INPUT_PULLUP);attachInterrupt(digitalPinToInterrupt(5),onTouch,RISING);
+  // Report what is actually on the shared I2C bus (touch 0x15, QMI8658 0x6B).
+  for(int address=8;address<0x78;address++){Wire.beginTransmission(address);if(Wire.endTransmission()==0){char hex[6];snprintf(hex,sizeof(hex),"%s0x%02x",i2cDevices.length()?" ":"",address);i2cDevices+=hex;}}
+  {uint8_t who=0;if(imuRead(0x00,&who,1))imuWhoAmI=who;}
+  imuQueue=xQueueCreate(64,sizeof(ImuSample));
+  imuReady=imuWhoAmI==0x05&&imuQueue&&imuInit();
+  if(imuReady)xTaskCreatePinnedToCore(imuTask,"imu",3072,nullptr,2,nullptr,1);
+#ifdef PULSE_BUZZER_PIN
+  ledcSetup(BUZZER_CHANNEL,2700,8);ledcAttachPin(PULSE_BUZZER_PIN,BUZZER_CHANNEL);ledcWrite(BUZZER_CHANNEL,0);
+#endif
   // Bluetooth coexistence in IDF 4.4 requires modem sleep enabled. With no AP
-  // association, ESP-NOW still listens on the selected channel.
-  WiFi.mode(WIFI_STA);WiFi.disconnect();esp_wifi_set_ps(WIFI_PS_MIN_MODEM);esp_wifi_set_channel(1,WIFI_SECOND_CHAN_NONE);
+  // association, ESP-NOW still listens on the selected channel. The hidden,
+  // password-protected SoftAP only answers FTM ranging; nothing joins it.
+  ftmQueue=xQueueCreate(2,sizeof(FtmReport));if(ftmQueue)WiFi.onEvent(onFtmReport,ARDUINO_EVENT_WIFI_FTM_REPORT);
+  WiFi.mode(WIFI_AP_STA);
+  String secret;for(int i=0;i<24;i++)secret+=char('a'+esp_random()%26);
+  bool responder=WiFi.softAP((String("PulseBand-range-")+OWNERS[SELF]).c_str(),secret.c_str(),1,1,1,true);
+  WiFi.disconnect();esp_wifi_set_ps(WIFI_PS_MIN_MODEM);esp_wifi_set_channel(1,WIFI_SECOND_CHAN_NONE);
+  // IDF derives the SoftAP MAC by setting the locally administered bit of the
+  // station MAC (two universal MACs); verified as 8E:FD:49:... on both boards.
+  memcpy(peerResponder,MACS[OTHER],6);peerResponder[0]|=0x02;
   radioQueue=xQueueCreate(12,sizeof(Packet));
   uint8_t ownMac[6];esp_wifi_get_mac(WIFI_IF_STA,ownMac);
   if(memcmp(ownMac,MACS[SELF],6)==0 && radioQueue && esp_now_init()==ESP_OK){
     esp_now_set_pmk(PAIR_KEY);esp_now_peer_info_t peer{};memcpy(peer.peer_addr,MACS[OTHER],6);memcpy(peer.lmk,PAIR_KEY,16);peer.channel=1;peer.encrypt=true;peer.ifidx=WIFI_IF_STA;
     radioReady=esp_now_add_peer(&peer)==ESP_OK;if(radioReady)esp_now_register_recv_cb(onRadio);
   }
+  // Range only the verified paired band, and only with a working responder.
+  rangingReady=radioReady&&responder&&ftmQueue;
   // A random sequence seed prevents rebooted peers confusing new messages with old ones.
-  nextSequence=esp_random()|1;setupBluetooth();render();DynamicJsonDocument hello(4096);hello["type"]="status";status(hello);output(hello);
+  nextSequence=esp_random()|1;setupBluetooth();render();DynamicJsonDocument hello(6144);hello["type"]="status";status(hello);output(hello);
 }
 void loop(){
-  processRadio();pollTouch();processBluetooth();
+  processRadio();pollTouch();processBluetooth();processImu();processRanging();
+  if(walkFix.valid){
+    // The friend has moved (or the path drifted) if the live distance no
+    // longer matches the located spot: hide the arrow until a new fit.
+    RangeReading live=rangeTracker.reading(millis());
+    if(live.valid&&std::abs(walkFix.distanceFrom(walker.x(),walker.y())-live.metres)>2*walkFix.sigmaMetres+live.uncertaintyMetres){
+      walkFix.valid=false;walkFix.reason="inconsistent";dirty=true;
+    }
+  }
   while(Serial.available()){
     char c=Serial.read();if(c=='\n'){command(serialLine);serialLine="";}else if(c!='\r'){if(serialLine.length()<3072)serialLine+=c;else serialLine="";}
   }
   uint32_t now=millis();
-  if(now-heartbeatAt>=2000){heartbeatAt=now;transmit(packet(HEARTBEAT));sharePosition();dirty=true;DynamicJsonDocument state(4096);state["type"]="status";status(state);output(state);}
+  if(now-heartbeatAt>=2000){heartbeatAt=now;transmit(packet(HEARTBEAT));sharePosition();dirty=true;DynamicJsonDocument state(6144);state["type"]="status";status(state,false);output(state);}
+  FindGuidance g=currentGuidance();
+  // Expiry or loss must clear the ring promptly, not at the next heartbeat.
+  if(view=="find"&&(g.mode!=renderedMode||g.ring!=renderedRing))dirty=true;
+  bool sounding=beeper.update(g.beepIntervalMs,now);
+  bool flash=beeper.flashing(now);
+  if(flash!=pulseOn){pulseOn=flash;if(view=="find")dirty=true;}
+#ifdef PULSE_BUZZER_PIN
+  if(sounding!=beepSounding)ledcWrite(BUZZER_CHANNEL,sounding?128:0);
+#endif
+  beepSounding=sounding;
   if(pendingSequence && now-pendingAt>=700){
     if(sendAttempts>=4){pendingSequence=0;result="Delivery unconfirmed";dirty=true;event("send_failed",pendingText);}
     else{Packet p=packet(MESSAGE,pendingSequence);pendingText.toCharArray(p.text,sizeof(p.text));transmit(p);pendingAt=now;sendAttempts++;}
