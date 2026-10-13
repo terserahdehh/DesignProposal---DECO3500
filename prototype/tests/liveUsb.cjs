@@ -27,8 +27,16 @@ async function command(owner, action, body = {}) {
       await expect(page.getByTestId('direction-detail')).toContainText('clockwise from north');
       await expect(page.getByTestId('direction-detail')).toContainText('SIMULATED LOCATION');
       await expect(page.getByTestId('direction-ring').locator('path').nth(1)).toHaveAttribute('stroke', owner === 'nayaka' ? '#FACC15' : '#A855F7');
+      const arrow = page.getByTestId('direction-arrow');
+      await expect(arrow).toHaveAttribute('d', 'M50 20 L70 80 L50 65 L30 80 Z');
+      const arrowBox = await arrow.boundingBox();
+      const ringBox = await page.getByTestId('direction-ring').boundingBox();
+      requireValue(arrowBox && ringBox && arrowBox.width >= 119
+        && Math.abs(arrowBox.x + arrowBox.width / 2 - ringBox.x - ringBox.width / 2) < 1
+        && Math.abs(arrowBox.y + arrowBox.height / 2 - ringBox.y - ringBox.height / 2) < 1,
+        'Real band direction preview arrow is not enlarged and centered');
     }
-    console.log('PASS: both real band directions produce the correct yellow/purple browser ring');
+    console.log('PASS: both real band directions produce centered large arrows and the correct yellow/purple browser ring');
     await page.getByTestId('owner-nayaka').click();
     await page.getByTestId('load-presets').click();
     await expect(page.getByTestId('load-presets')).not.toContainText('Reading');

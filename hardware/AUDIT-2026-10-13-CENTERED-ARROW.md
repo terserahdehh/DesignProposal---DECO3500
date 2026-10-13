@@ -18,3 +18,7 @@ Recovery images covering `0x000000–0x30ffff` (3,211,264 bytes each, not the en
 The physical direction/display tests used explicitly labelled demo coordinates, not a claim of accurate indoor GPS. Earlier real Vercel/Bluetooth tests confirmed location transport, but the laptops' reported accuracy overlapped and their providers sometimes timed out. Enlarging the arrow does not remove those device limitations. Use independent accurate phone positions outdoors to verify a usable real direction; the watch remains north-up, not wrist-relative.
 
 See [the next-laptop Vercel prompt](NEXT_LAPTOP.md) and [location troubleshooting](LOCATION_TROUBLESHOOTING.md). Firmware recovery, pairing keys and generated capture reports remain local.
+
+## Production handoff
+
+Deployment `dpl_4rigPCBdy7Xn7LhtAkEgpKcQtHJ5` reached READY and was assigned to https://pulseband-steel.vercel.app. Six selected browser regression tests passed on this public URL. The separate actual-USB browser verifier also passed there in Chrome 155, without hardware/API doubles: both bands produced the larger centered preview arrows and correct rings; actual message load/add/edit/delete/sync, repeated radio popups, acknowledgements, position clearing and mobile layout passed. Cleanup restored all original messages and cleared test locations. Later commits only update tests/docs; the deployed runtime remains the verified build.
