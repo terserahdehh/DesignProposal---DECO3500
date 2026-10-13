@@ -15,6 +15,7 @@
 #include "location_math.h"
 #include "touch_press.h"
 #include "direction_arc.h"
+#include "direction_arrow.h"
 
 // Pin profile verified against Waveshare's ESP32-S3-Touch-LCD-1.28 demo.
 static const char *OWNERS[] = {"nayaka", "syifa"};
@@ -241,7 +242,7 @@ void render(){
   }else if(view=="incoming"){
     label("FROM "+String(NAMES[OTHER]),120,106,OTHER==0?PURPLE:YELLOW);wrapped(incoming,127);label("Tap to dismiss",120,177,0xbdf7);
   }else if(view=="find"){
-    label("FIND "+String(NAMES[OTHER]),120,105,OTHER==0?PURPLE:YELLOW);
+    label("FIND "+String(NAMES[OTHER]),120,103,OTHER==0?PURPLE:YELLOW);
     if(!peerConnected()){
       label("Peer offline",120,130);label("Keep both bands powered",120,154,0xbdf7,1);
     }else if(!fresh(localPosition)||!fresh(peerPosition)){
@@ -250,18 +251,17 @@ void render(){
       Guidance g=guidance(localPosition.lat,localPosition.lon,peerPosition.lat,peerPosition.lon);
       DirectionQuality q=directionQuality(g.metres,localPosition.accuracy,peerPosition.accuracy);
       if(q.usable){
-        double angle=g.bearing*PI/180;int cx=64,cy=140;
-        int tipx=cx+sin(angle)*14,tipy=cy-cos(angle)*14;
-        int bx=cx-sin(angle)*8,by=cy+cos(angle)*8;
-        frame.fillTriangle(tipx,tipy,bx+cos(angle)*6,by+sin(angle)*6,bx-cos(angle)*6,by-sin(angle)*6,OTHER==0?PURPLE:YELLOW);
-        label(distanceText(g.metres),141,124);label("~"+String(g.bearing,0)+" deg N",141,142,0xbdf7);
-        label("Bearing +/- "+String(q.bearingUncertaintyDegrees,1)+" deg",120,154,0xbdf7,1);
-        label(accuracyText(q.combinedAccuracyMetres),120,166,0xbdf7,1);
+        DirectionArrow arrow=directionArrow(g.bearing);
+        if(arrow.visible)frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,OTHER==0?PURPLE:YELLOW);
+        label(distanceText(g.metres)+" | ~"+String(g.bearing,0)+" deg N",120,114,0xbdf7,1);
+        String accuracy=accuracyText(q.combinedAccuracyMetres);
+        accuracy.replace("GPS accuracy > 10 km","GPS >10km");accuracy.replace(" km","km");accuracy.replace(" m","m");
+        label(accuracy+" | +/-"+String(q.bearingUncertaintyDegrees,0)+"deg",120,170,0xbdf7,1);
       }else{
         label(distanceText(g.metres),120,128);label("GPS too uncertain",120,147,0xbdf7);
         label(accuracyText(q.combinedAccuracyMetres),120,160,0xbdf7,1);
       }
-      label((localPosition.simulated||peerPosition.simulated)?"SIMULATED LOCATION":"NORTH UP - phone GPS",120,176,0xbdf7,1);
+      label((localPosition.simulated||peerPosition.simulated)?"SIMULATED LOCATION":"NORTH UP - phone GPS",120,q.usable?180:176,0xbdf7,1);
     }
   }else if(view=="sos"){
     label("SEND SOS?",120,115,0xf208,4);label("Press OK "+String(3-sosCount)+" more",120,144);label("< or > cancels",120,172,0xbdf7);

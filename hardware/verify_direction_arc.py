@@ -35,6 +35,22 @@ def ring_pixels(snapshot, bearing, colour):
     return {'colouredPixels': len(samples), 'outsideQuarter': outside, 'averageBrightness': sum(samples) / len(samples)}
 
 
+def arrow_pixels(snapshot, colour):
+    """Inspect the actual enlarged triangle, excluding coloured labels/ring."""
+    pixels = decode_pixels(snapshot)
+    points = [(x, y) for y in range(118, 165) for x in range(92, 149)
+              if pixels[y * 240 + x] == colour]
+    require(len(points) > 400, 'Central direction arrow did not enlarge')
+    xs, ys = zip(*points)
+    bounds = [min(xs), min(ys), max(xs), max(ys)]
+    require(abs((bounds[0] + bounds[2]) / 2 - 120) <= 3
+            and abs((bounds[1] + bounds[3]) / 2 - 141) <= 3,
+            'Direction arrow is not centered in the LCD panel')
+    spans = sorted([bounds[2] - bounds[0], bounds[3] - bounds[1]])
+    require(spans[0] >= 22 and spans[1] >= 38, 'Arrow is smaller than 24 x 40 pixels')
+    return {'colouredPixels': len(points), 'bounds': bounds, 'centered': True}
+
+
 def run(bridge):
     verifier = PairVerifier(bridge)
     report = {'ok': False, 'scope': 'real USB, ESP-NOW, firmware status and framebuffer; labelled demo positions', 'checks': []}
@@ -58,7 +74,8 @@ def run(bridge):
                 snapshot = bridge.command(owner, 'frame_snapshot', {})
                 require(snapshot.get('view') == 'find', 'Screen changed during capture; leave touchscreens untouched')
                 pixels = ring_pixels(snapshot, light['bearing'], colour)
-                readings[case, owner] = {'owner': owner, 'colour': colour, 'bearing': light['bearing'], 'brightness': light['brightness'], **pixels}
+                arrow = arrow_pixels(snapshot, 0xFEA2 if colour == 'yellow' else 0xA2BE)
+                readings[case, owner] = {'owner': owner, 'colour': colour, 'bearing': light['bearing'], 'brightness': light['brightness'], 'arrow': arrow, **pixels}
                 report['checks'].append({'case': case, **readings[case, owner]})
                 print(f'PASS: {owner} {case}: {colour} quarter arc, {pixels["colouredPixels"]} coloured pixels', flush=True)
         for owner in OWNERS:
