@@ -183,6 +183,20 @@ test('expired or cleared Bluetooth status removes the previous direction', async
   client.disconnect();
 });
 
+test('a full Bluetooth status without measurements drops the previous range, proximity and mode', async () => {
+  const measured = { range: { valid: true, metres: 0.4 }, proximity: { active: true, beepIntervalMillis: 170 }, find: { mode: 'distance' } };
+  const band = fakeBand('nayaka', () => ({ ok: true, owner: 'nayaka', location: { valid: false }, ...measured }));
+  const client = createPhoneBluetooth(band.api);
+  await client.connect('nayaka');
+  assert.equal(client.getState().band.proximity.active, true);
+  // Partial events keep the measurement; a full status that omits it does not.
+  band.notify(`${JSON.stringify({ type: 'status', owner: 'nayaka', unread: false })}\n`);
+  assert.equal(client.getState().band.find.mode, 'distance');
+  band.notify(`${JSON.stringify({ type: 'status', owner: 'nayaka', location: { valid: false }, peerLocation: { valid: false } })}\n`);
+  for (const field of ['range', 'proximity', 'find']) assert.equal(client.getState().band[field], undefined, field);
+  client.disconnect();
+});
+
 test('custom band message and dismissal notifications update the phone immediately', async () => {
   const band = fakeBand();
   const client = createPhoneBluetooth(band.api);

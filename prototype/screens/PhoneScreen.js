@@ -7,7 +7,9 @@ import { createBandBridge } from '../utils/bandBridge';
 import { createPhoneBluetooth } from '../utils/phoneBluetooth';
 import { describeBandStatus, initialTransportMode } from '../utils/bandStatus';
 import DirectionRing from '../components/DirectionRing';
+import ProximityRing from '../components/ProximityRing';
 import { directionGlow } from '../utils/directionGlow';
+import { createBeepPreview } from '../utils/proximityAudio';
 import { createLocationSharing, prefersPreciseLocation } from '../utils/locationSharing';
 import { describeLocationStatus } from '../utils/locationStatus';
 
@@ -67,8 +69,13 @@ export default function PhoneScreen() {
   const liveBand = transportMode === 'bluetooth' ? bluetooth.band : band;
   const live = describeBandStatus(liveBand, owner, connected, statusReceivedAt, now);
   const showIncoming = live.incoming && live.incoming.key !== hiddenIncomingKey && !pendingLoad;
-  const glow = live.mode === 'ready' ? directionGlow(liveBand.guidance.bearing, liveBand.guidance.metres) : null;
+  const baseGlow = live.mode === 'ready' ? directionGlow(liveBand.guidance.bearing, liveBand.guidance.metres) : null;
+  const glow = baseGlow && live.proximity.active ? { ...baseGlow, brightness: live.proximity.brightness } : baseGlow;
   const directionDiameter = Math.max(100, Math.min(280, width - 112));
+  const [beepPreview] = useState(() => createBeepPreview());
+  const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const previewBeeping = previewEnabled && live.proximity.active && live.proximity.beepIntervalMs > 0;
 
   useEffect(() => {
     const unsubscribe = phoneBluetooth.subscribe(next => { setBluetooth(next); setStatusReceivedAt(Date.now()); });
@@ -92,6 +99,17 @@ export default function PhoneScreen() {
 
   useEffect(() => { if (!live.incoming) setHiddenIncomingKey(null); }, [live.incoming?.key]);
 
+  useEffect(() => { beepPreview.update(live.proximity); }, [beepPreview, live.proximity.active, live.proximity.beepIntervalMs]);
+  useEffect(() => () => beepPreview.disable(), [beepPreview]);
+
+  async function toggleBeepPreview() {
+    if (previewEnabled) { beepPreview.disable(); setPreviewEnabled(false); return; }
+    const result = await beepPreview.enable();
+    if (!mounted.current) return;
+    setPreviewError(result.ok ? '' : result.error);
+    setPreviewEnabled(result.ok);
+  }
+
   useEffect(() => {
     if (transportMode !== 'usb') { setChecking(false); return undefined; }
     let active = true;
@@ -112,7 +130,8 @@ export default function PhoneScreen() {
       }
     }
     check();
-    const interval = setInterval(check, 5000);
+    // Cheap cached snapshot; frequent enough that a 2 s band status never looks stale.
+    const interval = setInterval(check, 1000);
     return () => { active = false; clearInterval(interval); };
   }, [bridge, refresh, transportMode]);
 
@@ -351,7 +370,16 @@ export default function PhoneScreen() {
             <Text testID="direction-title" style={styles.messageText}>{live.title}</Text>
             {!!live.detail && <Text testID="direction-detail" style={styles.note}>{live.detail}</Text>}
             {glow && <View style={styles.directionPreview}><Text style={styles.northLabel}>N · NORTH</Text><DirectionRing diameter={directionDiameter} colour={COLOURS[owner === 'nayaka' ? 'syifa' : 'nayaka']} arrow {...glow} /><Text style={[styles.tinyNote, styles.directionCaption]}>Quarter light points toward {NAMES[owner === 'nayaka' ? 'syifa' : 'nayaka']} · brighter when closer</Text></View>}
-            <Text testID="direction-resolution-note" style={styles.tinyNote}>0.5–1 m movements cannot be distinguished reliably when location uncertainty is larger than the movement. The arrow and quarter light follow usable device fixes, and remain hidden when fixes are missing, expired or too uncertain.</Text>
+            {live.mode === 'walk' && <View style={styles.directionPreview}><Text testID="walk-estimate-caption" style={[styles.northLabel, { color: '#67E8F9' }]}>ESTIMATED FROM YOUR WALK · ±{Math.round(live.walkUncertaintyDegrees)}°</Text><DirectionRing diameter={directionDiameter} colour={COLOURS[owner === 'nayaka' ? 'syifa' : 'nayaka']} arrow bearing={live.walkBearing} walkUncertainty={live.walkUncertaintyDegrees} brightness={live.proximity.brightness} /><Text style={[styles.tinyNote, styles.directionCaption]}>Relative to the top of the band. Assumes your friend stays still while you walk; it disappears if the distances stop fitting.</Text></View>}
+            {live.mode === 'demo' && <View style={styles.directionPreview}><Text testID="demo-direction-caption" style={[styles.northLabel, { color: '#FDBA74' }]}>DEMO DIRECTION — NOT MEASURED</Text><DirectionRing diameter={directionDiameter} colour={COLOURS[owner === 'nayaka' ? 'syifa' : 'nayaka']} arrow demo bearing={live.demoBearing} brightness={live.proximity.brightness} /><Text style={[styles.tinyNote, styles.directionCaption]}>Set with &lt; and &gt; on the band. It does not follow the other band; brightness follows the measured distance.</Text></View>}
+            {live.mode === 'distance' && <View style={styles.directionPreview}><ProximityRing diameter={directionDiameter} colour={COLOURS[owner === 'nayaka' ? 'syifa' : 'nayaka']} brightness={live.proximity.brightness} /><Text style={[styles.tinyNote, styles.directionCaption]}>No direction · the whole ring brightens as the measured distance shrinks</Text></View>}
+            <View style={styles.previewBox}>
+              <Text testID="beep-preview-note" style={styles.tinyNote}>LAPTOP PREVIEW — these bands have no buzzer or speaker. This plays the band’s reported beep timing through this computer’s speaker; the sound does not come from the band.</Text>
+              <Button testID="beep-preview" disabled={!connected} onPress={toggleBeepPreview}>{previewEnabled ? 'Stop laptop beep preview' : 'Play laptop beep preview'}</Button>
+              <Text testID="beep-preview-status" accessibilityLiveRegion="polite" style={styles.tinyNote}>{!previewEnabled ? 'Preview off.' : previewBeeping ? `Beeping every ${live.proximity.beepIntervalMs} ms, as reported by the band.` : 'Silent: no usable measurement, too far for beeps, or Find Direction is not open on the band.'}</Text>
+              {!!previewError && <Text style={[styles.tinyNote, styles.error]}>{previewError}</Text>}
+            </View>
+            <Text testID="direction-resolution-note" style={styles.tinyNote}>Measured on these bands: Wi-Fi round-trip ranging repeats within about ±0.15 m when they nearly touch, but read up to 1.4 m wrong at other desk positions, so centimetre movement cannot be detected. A direction comes only from usable phone GPS (north-up) or a walk-to-find estimate (walk a few metres and turn while your friend stays still); the arrow and quarter light stay hidden when these are missing, expired, too uncertain or contradicted by the measured distance.</Text>
             {!!liveBand?.result && connected && <Text accessibilityLiveRegion="polite" style={styles.note}>Last band result: {liveBand.result}</Text>}
             {live.incoming && <Button onPress={() => setHiddenIncomingKey(null)}>Show incoming message</Button>}
             <Text style={styles.tinyNote}>Messages and SOS travel between the paired Nayaka and Syifa bands even when the website is closed. The arrow on the watch is north up; use a phone compass to orient yourself.</Text>
@@ -443,5 +471,5 @@ const styles = StyleSheet.create({
   bandStatuses: { gap: 8 }, bandStatus: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 7, borderBottomWidth: 1, borderBottomColor: '#203149', paddingBottom: 10, paddingTop: 5 }, statusName: { flexDirection: 'row', gap: 8, alignItems: 'center' }, statusDot: { width: 7, height: 7, borderRadius: 4 }, statusValue: { color: THEME.muted, fontSize: 12, lineHeight: 20 }, mac: { width: '100%', paddingLeft: 15, color: THEME.muted, fontSize: 10 },
   liveLocation: { color: '#86EFAC', fontSize: 12, lineHeight: 19 }, locationBox: { backgroundColor: '#0F2430', padding: 12, borderRadius: 8, gap: 5 }, locationText: { color: '#A8E5C5', fontSize: 14, fontVariant: ['tabular-nums'] }, footer: { color: '#8FA2BC', fontSize: 10, letterSpacing: 1.4, marginTop: 30, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#1D2C42' },
   fixDetails: { gap: 12, borderBottomWidth: 1, borderBottomColor: '#203149', paddingBottom: 14 }, fixRow: { gap: 4 }, fixName: { color: THEME.text, fontSize: 13, fontWeight: '700' },
-  directionPreview: { alignItems: 'center', width: '100%', marginVertical: 12, gap: 10 }, northLabel: { color: THEME.secondary, fontSize: 11, letterSpacing: 1.4, fontWeight: '700' }, directionCaption: { textAlign: 'center', maxWidth: 300 },
+  directionPreview: { alignItems: 'center', width: '100%', marginVertical: 12, gap: 10 }, previewBox: { gap: 8, borderTopWidth: 1, borderTopColor: '#203149', paddingTop: 12 }, northLabel: { color: THEME.secondary, fontSize: 11, letterSpacing: 1.4, fontWeight: '700' }, directionCaption: { textAlign: 'center', maxWidth: 300 },
 });

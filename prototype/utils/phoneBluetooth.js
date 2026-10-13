@@ -33,7 +33,8 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
     const source = response.band || response;
     // Firmware omits guidance once a fix expires. A partial event must not
     // keep a bearing from an older complete status response.
-    if (('location' in source || 'peerLocation' in source) && !('guidance' in source)) delete next.guidance;
+    const full = 'location' in source || 'peerLocation' in source;
+    for (const field of ['guidance', 'range', 'proximity', 'find']) if (full && !(field in source)) delete next[field];
     if (source.location?.valid === false || source.peerLocation?.valid === false) delete next.guidance;
     return next;
   }

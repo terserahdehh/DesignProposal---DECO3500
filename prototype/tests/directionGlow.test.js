@@ -12,10 +12,16 @@ test('the direction glow covers one quarter of the ring around the north bearing
   assert.equal(arcPath(360), arcPath(0));
 });
 test('proximity brightness is monotonic and invalid distances show no glow', () => {
-  assert.equal(directionGlow(90, 5).brightness, 1);
-  assert.ok(directionGlow(90, 25).brightness > directionGlow(90, 100).brightness);
-  assert.ok(directionGlow(90, 100).brightness > directionGlow(90, 200).brightness);
-  assert.equal(directionGlow(90, 200).brightness, 0.2);
+  // Same final-approach curve as the firmware: full at 0.2 m, dimmest from 20 m.
+  assert.equal(directionGlow(90, 0.2).brightness, 1);
+  assert.ok(directionGlow(90, 0.4).brightness > directionGlow(90, 1.3).brightness);
+  assert.ok(directionGlow(90, 5).brightness > directionGlow(90, 15).brightness);
+  assert.ok(directionGlow(90, 15).brightness > directionGlow(90, 19).brightness);
+  assert.equal(directionGlow(90, 20).brightness, 0.12);
+  assert.equal(directionGlow(90, 200).brightness, 0.12);
+  assert.ok(Math.abs(directionGlow(90, 5).brightness - 0.1997) < 1e-3);
+  // Desk scale must be visible: touching is at least twice as bright as 1 m.
+  assert.ok(directionGlow(90, 0.1).brightness >= 2 * directionGlow(90, 1).brightness);
   for (const value of [NaN, Infinity, -1]) assert.equal(directionGlow(90, value), null);
   assert.equal(directionGlow(NaN, 10), null);
 });
@@ -49,7 +55,9 @@ test('large web arrow is centered in the compass and stays inside its quarter-ri
   }
 });
 
-test('reported half-metre changes update light brightness only outside the physical full-brightness range', () => {
-  assert.ok(directionGlow(90, 25.5).brightness < directionGlow(90, 25).brightness);
-  assert.equal(directionGlow(90, 1.5).brightness, directionGlow(90, 1).brightness);
+test('reported half-metre changes update light brightness at desk and festival distances', () => {
+  assert.ok(directionGlow(90, 15.5).brightness < directionGlow(90, 15).brightness);
+  assert.ok(directionGlow(90, 1.5).brightness < directionGlow(90, 1).brightness);
+  assert.ok(directionGlow(90, 0.6).brightness < directionGlow(90, 0.3).brightness);
+  assert.equal(directionGlow(90, 0.05).brightness, directionGlow(90, 0.2).brightness);
 });

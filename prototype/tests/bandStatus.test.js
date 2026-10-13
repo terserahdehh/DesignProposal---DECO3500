@@ -43,6 +43,78 @@ test('incoming custom messages are identified separately even when their text re
   assert.equal(describe({ unread: true, incoming: 'x'.repeat(41) }).incoming, null);
 });
 
+const measured = { find: { mode: 'distance' },
+  proximity: { active: true, source: 'wifi-ftm', metres: 0.42, uncertaintyMetres: 0.15, brightness: 0.81, beepIntervalMillis: 178 } };
+
+test('band-measured distance works without locations and never claims a direction', () => {
+  const state = describe({ ...measured, location: { valid: false }, peerLocation: { valid: false }, guidance: undefined });
+  assert.equal(state.mode, 'distance');
+  assert.match(state.title, /Distance to Syifa/);
+  assert.match(state.detail, /0\.4 m ±0\.15 m/);
+  assert.match(state.detail, /no compass/i);
+  assert.equal(state.proximity.active, true);
+});
+
+test('the band’s suppressed direction is not revived from raw GPS guidance', () => {
+  // GPS alone looks usable, but the band measured 0.4 m inside its uncertainty.
+  const state = describe(measured);
+  assert.equal(state.mode, 'distance');
+  assert.doesNotMatch(state.detail, /clockwise from north/);
+});
+
+test('stale, offline or inactive band measurements fall back to location states', () => {
+  assert.equal(describe({ ...measured, guidance: undefined, location: { valid: false } }, true, now - 6000).mode, 'waiting');
+  assert.equal(describe({ ...measured, peerConnected: false }).mode, 'waiting');
+  const inactive = describe({ find: { mode: 'unavailable' }, proximity: { active: false }, location: { valid: false }, guidance: undefined });
+  assert.equal(inactive.mode, 'waiting');
+  assert.equal(inactive.proximity.active, false);
+});
+
+test('direction from the band carries the band-measured distance and brightness', () => {
+  const state = describe({ find: { mode: 'direction' }, proximity: { ...measured.proximity, metres: 98, uncertaintyMetres: 1.5, brightness: 0.2, beepIntervalMillis: 0 } });
+  assert.equal(state.mode, 'ready');
+  assert.match(state.detail, /90° clockwise from north/);
+  assert.match(state.detail, /98 m measured/);
+  assert.equal(state.proximity.brightness, 0.2);
+});
+
+test('a band demo direction is labelled as not measured and keeps the measured distance', () => {
+  const state = describe({ find: { mode: 'demo-direction', demoBearing: 135 }, proximity: measured.proximity, location: { valid: false }, guidance: undefined });
+  assert.equal(state.mode, 'demo');
+  assert.equal(state.demoBearing, 135);
+  assert.match(state.title, /DEMO direction/);
+  assert.match(state.detail, /not measured/i);
+  assert.match(state.detail, /0\.4 m ±0\.15 m/);
+  assert.doesNotMatch(state.detail, /clockwise from north/);
+  // Without a current measured distance, or with a malformed bearing, no demo shell.
+  assert.equal(describe({ find: { mode: 'demo-direction', demoBearing: 135 }, proximity: { active: false }, location: { valid: false }, guidance: undefined }).mode, 'waiting');
+  for (const demoBearing of [NaN, -1, 360, '90']) {
+    assert.notEqual(describe({ find: { mode: 'demo-direction', demoBearing }, proximity: measured.proximity, location: { valid: false } }).mode, 'demo');
+  }
+  // GPS guidance in the status must not upgrade a demo into a measured direction.
+  assert.equal(describe({ find: { mode: 'demo-direction', demoBearing: 135 }, proximity: measured.proximity }).mode, 'demo');
+});
+
+test('a walk-to-find estimate is shown with its uncertainty and never as a GPS direction', () => {
+  const walk = { find: { mode: 'walk-estimate', walkBearing: 300, walkUncertaintyDegrees: 22, walk: { state: 'ok', steps: 14 } },
+    proximity: { ...measured.proximity, metres: 6.2, uncertaintyMetres: 1.5 }, location: { valid: false }, guidance: undefined };
+  const state = describe(walk);
+  assert.equal(state.mode, 'walk');
+  assert.equal(state.walkBearing, 300);
+  assert.equal(state.walkUncertaintyDegrees, 22);
+  assert.match(state.title, /Estimated direction/);
+  assert.match(state.detail, /±22°/);
+  assert.match(state.detail, /stays still/);
+  assert.doesNotMatch(state.detail, /north/);
+  for (const patch of [{ walkBearing: NaN }, { walkBearing: 360 }, { walkUncertaintyDegrees: 46 }, { walkUncertaintyDegrees: undefined }])
+    assert.notEqual(describe({ ...walk, find: { ...walk.find, ...patch } }).mode, 'walk', JSON.stringify(patch));
+  assert.notEqual(describe({ ...walk, proximity: { active: false } }).mode, 'walk');
+  // Distance-only status passes the band's walk hint through.
+  const hint = describe({ ...measured, find: { mode: 'distance', walk: { state: 'turn', steps: 6 } }, location: { valid: false }, guidance: undefined });
+  assert.equal(hint.mode, 'distance');
+  assert.match(hint.detail, /turn/i);
+});
+
 test('demo guidance stays explicitly labelled as simulated', () => {
   assert.match(describe({ location: { ...fix, simulated: true } }).detail, /SIMULATED/);
 });

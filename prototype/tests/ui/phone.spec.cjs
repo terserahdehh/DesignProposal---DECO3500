@@ -162,7 +162,7 @@ test('custom popups, repeated messages, dismissal and direction expiry work on m
   await expect(arc).toHaveAttribute('stroke', '#FACC15');
   const firstPath = await arc.getAttribute('d');
   const firstBrightness = Number(await arc.getAttribute('opacity'));
-  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, bearing: 0, metres: 25 } }));
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, bearing: 0, metres: 10 } }));
   const arrow = page.getByTestId('direction-arrow');
   await expect(arrow).toBeVisible();
   const arrowBox = await arrow.boundingBox();
@@ -195,10 +195,10 @@ test('large compass keeps its rotation anchor centred and responds to reported g
   const ring = page.getByTestId('direction-ring');
   const light = page.getByTestId('direction-quarter-light');
   const update = guidance => page.evaluate(guidance => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, ...guidance } }), guidance);
-  await update({ bearing: 0, metres: 25 });
+  await update({ bearing: 0, metres: 10 });
   const initialPath = await light.getAttribute('d');
   const initialOpacity = Number(await light.getAttribute('opacity'));
-  await update({ bearing: 0, metres: 25.5 });
+  await update({ bearing: 0, metres: 10.5 });
   await expect.poll(async () => Number(await light.getAttribute('opacity'))).toBeLessThan(initialOpacity);
   await expect(light).toHaveAttribute('d', initialPath);
   for (const bearing of [45, 90, 135, 180, 225, 270, 315]) {
@@ -221,7 +221,7 @@ test('large compass keeps its rotation anchor centred and responds to reported g
   expect(ringBox.width).toBeGreaterThanOrEqual(270);
   expect(ringBox.x).toBeGreaterThanOrEqual(0);
   expect(ringBox.x + ringBox.width).toBeLessThanOrEqual(390);
-  await expect(page.getByTestId('direction-resolution-note')).toContainText('0.5–1 m movements cannot be distinguished reliably');
+  await expect(page.getByTestId('direction-resolution-note')).toContainText('centimetre movement cannot be detected');
   await ring.scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath('large-direction-mobile.png') });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -296,6 +296,117 @@ test('uncertain, offline and old telemetry remove browser direction claims', asy
   await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', peerConnected: false }));
   await expect(page.getByTestId('direction-title')).toContainText('Waiting for fresh locations');
   await expect(page.getByTestId('direction-title')).toContainText('Connect your band', { timeout: 12000 });
+});
+
+async function installFakeAudio(page) {
+  await page.addInitScript(() => {
+    window.__tones = [];
+    class FakeAudioContext {
+      constructor() { this.currentTime = 0; this.destination = {}; this.state = 'running'; }
+      createOscillator() { return { frequency: { value: 0 }, connect() {}, start: () => window.__tones.push(Date.now()), stop() {} }; }
+      createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+      async resume() {}
+      async close() { this.state = 'closed'; }
+    }
+    window.AudioContext = FakeAudioContext;
+  });
+}
+
+const measuredStatus = proximity => ({ type: 'status', owner: 'nayaka', peer: 'syifa', peerConnected: true,
+  location: { valid: false, timestamp: 0, accuracy: 0, simulated: false }, peerLocation: { valid: false, timestamp: 0, accuracy: 0, simulated: false },
+  find: { mode: proximity.active ? 'distance' : 'unavailable' }, proximity });
+const nearProximity = { active: true, source: 'wifi-ftm', metres: 0.42, uncertaintyMetres: 0.15, brightness: 0.81, beepIntervalMillis: 178 };
+
+test('band-measured distance shows a non-directional light and a labelled laptop beep preview that stops when unusable', async ({ page }) => {
+  await page.clock.install();
+  await installFakeAudio(page);
+  await connect(page);
+  const notify = proximity => page.evaluate(status => window.__band.notify(status), measuredStatus(proximity));
+  await notify(nearProximity);
+  await expect(page.getByTestId('direction-title')).toContainText('Distance to Syifa');
+  await expect(page.getByTestId('direction-detail')).toContainText('0.4 m ±0.15 m');
+  await expect(page.getByTestId('direction-detail')).toContainText('no compass');
+  const ring = page.getByTestId('proximity-ring');
+  await expect(ring).toBeVisible();
+  await expect(ring).toHaveAttribute('aria-label', /no direction.*81 percent/);
+  await expect(page.getByTestId('direction-arrow')).toHaveCount(0);
+  await expect(page.getByTestId('direction-ring')).toHaveCount(0);
+
+  const preview = page.getByTestId('beep-preview');
+  await expect(page.getByTestId('beep-preview-note')).toContainText('LAPTOP PREVIEW');
+  await expect(page.getByTestId('beep-preview-note')).toContainText('no buzzer');
+  expect(await page.evaluate(() => window.__tones.length)).toBe(0);
+  await preview.click();
+  await expect(preview).toContainText('Stop laptop beep preview');
+  await page.clock.runFor(1000);
+  const audible = await page.evaluate(() => window.__tones.length);
+  expect(audible).toBeGreaterThanOrEqual(5);
+  expect(audible).toBeLessThanOrEqual(7);
+
+  // The band stops reporting a usable measurement: light and beeps stop.
+  await notify({ active: false });
+  await expect(ring).toHaveCount(0);
+  const silenced = await page.evaluate(() => window.__tones.length);
+  await page.clock.runFor(2000);
+  expect(await page.evaluate(() => window.__tones.length)).toBe(silenced);
+  await expect(page.getByTestId('beep-preview-status')).toContainText('Silent');
+
+  // Recovery resumes at once; then status stops arriving and it goes silent again.
+  await notify(nearProximity);
+  await expect(ring).toBeVisible();
+  await page.clock.runFor(500);
+  const recovered = await page.evaluate(() => window.__tones.length);
+  expect(recovered).toBeGreaterThan(silenced);
+  await page.clock.runFor(6000);
+  const afterStale = await page.evaluate(() => window.__tones.length);
+  await page.clock.runFor(3000);
+  expect(await page.evaluate(() => window.__tones.length)).toBe(afterStale);
+  await expect(ring).toHaveCount(0);
+  await preview.click();
+  await expect(preview).toContainText('Play laptop beep preview');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('a band demo direction shows a labelled quarter-shell and arrow with real-distance brightness', async ({ page }) => {
+  await connect(page);
+  const show = (demoBearing, proximity) => page.evaluate(status => window.__band.notify(status),
+    { ...measuredStatus(proximity), find: { mode: 'demo-direction', demoBearing } });
+  await show(90, nearProximity);
+  await expect(page.getByTestId('direction-title')).toContainText('DEMO direction');
+  await expect(page.getByTestId('direction-detail')).toContainText('DEMO DIRECTION — NOT MEASURED');
+  await expect(page.getByTestId('direction-detail')).toContainText('does not follow the other band');
+  const ring = page.getByTestId('direction-ring');
+  await expect(ring).toHaveAttribute('aria-label', /DEMO direction, not measured, at 90 degrees, 81 percent/);
+  await expect(page.getByTestId('direction-arrow')).toBeVisible();
+  await expect(page.getByTestId('demo-direction-caption')).toContainText('DEMO DIRECTION — NOT MEASURED');
+  await expect(page.getByTestId('proximity-ring')).toHaveCount(0);
+  const light = page.getByTestId('direction-quarter-light');
+  const nearOpacity = Number(await light.getAttribute('opacity'));
+  const east = await light.getAttribute('d');
+  await show(225, { ...nearProximity, metres: 1.3, uncertaintyMetres: 1.5, brightness: 0.6, beepIntervalMillis: 440 });
+  await expect(ring).toHaveAttribute('aria-label', /at 225 degrees, 60 percent/);
+  await expect(light).not.toHaveAttribute('d', east);
+  expect(Number(await light.getAttribute('opacity'))).toBeLessThan(nearOpacity);
+  await show(225, { active: false });
+  await expect(ring).toHaveCount(0);
+  await expect(page.getByTestId('direction-arrow')).toHaveCount(0);
+});
+
+test('a walk-to-find estimate shows a labelled arrow that disappears when the band withdraws it', async ({ page }) => {
+  await connect(page);
+  const show = (find, proximity) => page.evaluate(status => window.__band.notify(status), { ...measuredStatus(proximity), find });
+  const far = { ...nearProximity, metres: 6.2, uncertaintyMetres: 1.5, brightness: 0.3, beepIntervalMillis: 1300 };
+  await show({ mode: 'walk-estimate', walkBearing: 300, walkUncertaintyDegrees: 22, walk: { state: 'ok', steps: 14 } }, far);
+  await expect(page.getByTestId('direction-title')).toContainText('Estimated direction');
+  await expect(page.getByTestId('direction-detail')).toContainText('±22°');
+  const ring = page.getByTestId('direction-ring');
+  await expect(ring).toHaveAttribute('aria-label', /Walk estimate at 300 degrees, plus or minus 22 degrees, 30 percent/);
+  await expect(page.getByTestId('direction-arrow')).toBeVisible();
+  await expect(page.getByTestId('walk-estimate-caption')).toContainText('ESTIMATED FROM YOUR WALK');
+  await show({ mode: 'distance', walk: { state: 'inconsistent', steps: 20 } }, far);
+  await expect(ring).toHaveCount(0);
+  await expect(page.getByTestId('direction-arrow')).toHaveCount(0);
+  await expect(page.getByTestId('direction-detail')).toContainText('moved');
 });
 
 test('unsupported Bluetooth leaves the message editor usable without hardware writes', async ({ page }) => {
