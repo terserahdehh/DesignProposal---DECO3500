@@ -106,22 +106,25 @@ static void probesInTwoDirectionsNarrowTheArrow() {
 
 static void tooSmallAChangeIsIgnored() {
   Rig rig;
-  // Measured 13 Oct with both bands lying still: median-of-5 before/after
-  // changes stayed below 0.10 m (yellow) and 0.18 m (purple) 95% of the time.
-  rig.probe(90, 1.50, 1.40);
+  // Measured 13 Oct with both bands lying still: the median-of-5 before/after
+  // change was typically 0.00-0.03 m; the band handled a 5.7 cm desk move as noise.
+  rig.probe(90, 1.50, 1.43);
   auto estimate = rig.compass.estimate(rig.now, rig.heading);
   assert(!estimate.valid && estimate.probes == 0);
   assert(rig.compass.lastProbe() == ProbeResult::NoChange);
 }
 
 static void turningWhileMovingOrShortRestsDiscardTheProbe() {
+  // Observed: the yellow band spun while being handled and every move was
+  // thrown away. Now the direction is where its top faced when it stopped.
   Rig turned;
   turned.heading = 0;
   turned.still(2, 0.6);
-  turned.move(1, 180);  // pointing every way while moving: no direction
+  turned.move(1, 180);
   turned.still(3.5, 0.3);
-  assert(!turned.compass.estimate(turned.now, turned.heading).valid);
-  assert(turned.compass.lastProbe() == ProbeResult::Turned);
+  auto spun = turned.compass.estimate(turned.now, turned.heading);
+  assert(turned.compass.lastProbe() == ProbeResult::Counted);
+  assert(spun.valid && gap(spun.headingFrameBearing, 180) < 1 && gap(spun.bearingFromTop, 0) < 1);
 
   Rig hurried;
   hurried.compass.motion(false, 0, hurried.now);
@@ -148,6 +151,18 @@ static void shortPausesDoNotBreakAMove() {
   auto estimate = rig.compass.estimate(rig.now, rig.heading);
   assert(rig.compass.lastProbe() == ProbeResult::Counted && estimate.probes == 1);
   assert(std::abs(rig.compass.lastChange() + 0.85) < 1e-9);
+  assert(estimate.valid && gap(estimate.bearingFromTop, 0) < 1);
+}
+
+static void longHandlingStillCounts() {
+  // Observed: holding and turning a band for over 15 s was "interrupted".
+  Rig rig;
+  rig.heading = 45;
+  rig.still(2.5, 0.8);
+  for (int i = 0; i < 12; ++i) { rig.move(1.5); rig.still(0.6, 0.6); }
+  rig.still(3.5, 0.5);
+  assert(rig.compass.lastProbe() == ProbeResult::Counted);
+  auto estimate = rig.compass.estimate(rig.now, 45);
   assert(estimate.valid && gap(estimate.bearingFromTop, 0) < 1);
 }
 
@@ -225,6 +240,7 @@ int main() {
   turningWhileMovingOrShortRestsDiscardTheProbe();
   shortPausesDoNotBreakAMove();
   theDirectionIsWhereTheTopPointedWhileMoving();
+  longHandlingStillCounts();
   theArrowStaysAndNewerMovesTakeOver();
   invalidDistancesAreIgnored();
   std::cout << "PASS: warmer/colder probes, two-direction narrowing, noise, turns, short rests, expiry and reset\n";

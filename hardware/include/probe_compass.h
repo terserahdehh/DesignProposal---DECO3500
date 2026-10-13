@@ -13,16 +13,17 @@ enum class ProbeResult : uint8_t { None, Counted, NoChange, Turned, NotEnoughRea
 enum class ProbePhase : uint8_t { Waiting, Ready, Moving, Measuring };
 
 // Measured 13 Oct 2026 with both bands lying still on a desk: the median of
-// 5 readings before vs 5 after changed by under 0.10 m (yellow) and 0.18 m
-// (purple) 95% of the time; people nearby alter the radio path.
-constexpr double PROBE_MIN_CHANGE_METRES = 0.15;
-// Heading samples while moving must roughly agree (|mean vector| >= this,
-// about +/-45 degrees of spread) for the move to have a direction.
+// 5 readings before vs 5 after typically changed by 0.00-0.03 m but by up to
+// 0.10-0.18 m one time in twenty. The user prefers an arrow that sometimes
+// errs over one that rarely appears.
+constexpr double PROBE_MIN_CHANGE_METRES = 0.10;
+// When headings while moving disagree more than this (|mean vector|, about
+// +/-45 degrees of spread), the move's direction is where the top faced when
+// it stopped rather than the average.
 constexpr double PROBE_MIN_AIM_AGREEMENT = 0.7;
 constexpr int PROBE_BEFORE_READINGS = 3;  // at least; up to PROBE_AFTER_READINGS
 constexpr int PROBE_AFTER_READINGS = 5;
 constexpr uint32_t PROBE_MIN_MOVE_MS = 150;
-constexpr uint32_t PROBE_MAX_MOVE_MS = 15000;  // including short pauses
 constexpr uint32_t PROBE_SETTLE_MS = 300;  // a session may straddle the stop
 // Moves never expire while Find is open; an older move counts half as much
 // every half-life, so newer moves win if the friend has moved.
@@ -49,6 +50,7 @@ class ProbeCompass {
   double after_[PROBE_AFTER_READINGS] = {};
   double before_ = NAN, aimSin_ = 0, aimCos_ = 0, lastChange_ = NAN;
   int aimSamples_ = 0;
+  double lastHeading_ = 0;
   bool haveBefore_ = false;
   uint32_t moveStart_ = 0, moveEnd_ = 0;
   Probe probes_[PROBE_MAX] = {};
@@ -74,6 +76,7 @@ class ProbeCompass {
   }
 
   void addAim(double heading) {
+    lastHeading_ = heading;
     const double radians = heading * 3.14159265358979323846 / 180;
     aimSin_ += std::sin(radians);
     aimCos_ += std::cos(radians);
@@ -83,9 +86,10 @@ class ProbeCompass {
   void finish(uint32_t now) {
     const double after = median(after_, afterCount_);
     lastChange_ = haveBefore_ ? after - before_ : NAN;
-    const double aim = std::fmod(std::atan2(aimSin_, aimCos_) * 180 / 3.14159265358979323846 + 360, 360);
-    if (std::hypot(aimSin_, aimCos_) < PROBE_MIN_AIM_AGREEMENT * aimSamples_) last_ = ProbeResult::Turned;
-    else if (!haveBefore_) last_ = ProbeResult::NotEnoughReadings;
+    const bool steadyAim = std::hypot(aimSin_, aimCos_) >= PROBE_MIN_AIM_AGREEMENT * aimSamples_;
+    const double aim = steadyAim ? std::fmod(std::atan2(aimSin_, aimCos_) * 180 / 3.14159265358979323846 + 360, 360)
+                                 : std::fmod(std::fmod(lastHeading_, 360.0) + 360.0, 360.0);
+    if (!haveBefore_) last_ = ProbeResult::NotEnoughReadings;
     else if (std::abs(after - before_) < PROBE_MIN_CHANGE_METRES) last_ = ProbeResult::NoChange;
     else {
       if (count_ == PROBE_MAX) {
@@ -128,10 +132,6 @@ class ProbeCompass {
         addAim(heading);
       } else {
         addAim(heading);
-        if (uint32_t(now - moveStart_) > PROBE_MAX_MOVE_MS) {
-          last_ = ProbeResult::Interrupted;
-          haveBefore_ = false;
-        }
       }
       return;
     }
