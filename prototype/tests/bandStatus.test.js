@@ -52,3 +52,16 @@ test('public HTTPS phone setup starts with Bluetooth while localhost starts with
   for (const hostname of ['localhost', '127.0.0.1', '[::1]']) assert.equal(initialTransportMode({ protocol: 'http:', hostname }), 'usb');
   assert.equal(initialTransportMode(undefined), 'usb');
 });
+
+test('location diagnostics identify the missing wearer instead of a generic waiting message', () => {
+  assert.match(describe({ location: { valid: false } }).detail, /Nayaka.*Keep location updated/);
+  assert.match(describe({ peerLocation: { valid: false } }).detail, /Syifa.*Keep location updated/);
+  assert.match(describe({ peerConnected: false }).detail, /Syifa.*offline/);
+});
+
+test('coarse laptop fixes explain overlapping accuracy and the need for independent phone positions', () => {
+  const state = describe({ location: { ...fix, accuracy: 1000 }, peerLocation: { ...fix, accuracy: 1000 }, guidance: { ...band.guidance, metres: 2, usable: false, accuracy: 2000 } });
+  assert.match(state.detail, /2000 m/);
+  assert.match(state.detail, /overlap/);
+  assert.match(state.detail, /own phone/);
+});

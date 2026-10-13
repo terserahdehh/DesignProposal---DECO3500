@@ -13,11 +13,16 @@ function describeBandStatus(band, owner, connected, observedAt, now = Date.now()
   if (band.unread === true && typeof band.incoming === 'string' && /^[\x20-\x7e]{1,40}$/.test(band.incoming))
     state.incoming = { from: peer, text: band.incoming, key: `${owner}:${band.incomingSequence || 0}:${band.incoming}` };
   const fresh = fix => fix?.valid === true && Number.isFinite(fix.timestamp) && fix.timestamp > 0 && now - fix.timestamp < LOCATION_TTL_MS && fix.timestamp - now <= 5000;
-  if (!state.peerConnected || !fresh(band.location) || !fresh(band.peerLocation)) return state;
+  const name = id => id === 'nayaka' ? 'Nayaka' : 'Syifa';
+  if (!state.peerConnected) return { ...state, detail: `${name(peer)}’s paired band is offline. Power on both bands and bring them within radio range.` };
+  if (!fresh(band.location) || !fresh(band.peerLocation)) {
+    const missing = [!fresh(band.location) && name(owner), !fresh(band.peerLocation) && name(peer)].filter(Boolean).join(' and ');
+    return { ...state, detail: `${missing} needs a fresh location. On each missing wearer’s device, connect their matching band and press Keep location updated. Keep the pages visible and allow location access.` };
+  }
   const guidance = band.guidance;
   if (guidance?.available !== true || !Number.isFinite(guidance.metres) || guidance.metres < 0) return state;
   if (guidance.usable !== true) return { ...state, mode: 'uncertain', title: 'Location is too uncertain for a direction.',
-    detail: `Approximate separation: ${Math.round(guidance.metres)} m. Move outdoors and wait for more accurate positions.` };
+    detail: `Approximate separation: ${Math.round(guidance.metres)} m.${Number.isFinite(guidance.accuracy) ? ` Combined reported accuracy: ±${Math.round(guidance.accuracy)} m.` : ''} The accuracy ranges overlap or the bearing is ambiguous, so no safe arrow is shown. Each wearer should use their own phone outdoors; laptop locations may be coarse or identical.` };
   if (!Number.isFinite(guidance.bearing) || guidance.bearing < 0 || guidance.bearing >= 360 ||
       !Number.isFinite(guidance.bearingUncertaintyDegrees) || guidance.bearingUncertaintyDegrees < 0 || guidance.bearingUncertaintyDegrees > 90 ||
       guidance.northReferenced !== true) return state;
