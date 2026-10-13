@@ -30,6 +30,8 @@ DEFAULT_ORIGINS = frozenset({"https://pulseband-steel.vercel.app"} | {
 })
 MAX_BODY_BYTES = 16384
 MAX_LINE_BYTES = 65536  # Includes optional USB framebuffer snapshots.
+TELEMETRY_LIMIT = 600  # Wi-Fi ranging samples per band, a few minutes' worth.
+MEASUREMENT_FIELDS = ("range", "proximity", "find")
 LOG = logging.getLogger("pulseband.bridge")
 
 
@@ -106,7 +108,7 @@ class SerialConnection:
                     pending.response = message
                     pending.ready.set()
             return
-        if self.owner is not None and message.get("type") in ("status", "message", "sent", "send_failed", "dismissed"):
+        if self.owner is not None and message.get("type") in ("status", "message", "sent", "send_failed", "dismissed", "range"):
             self.callback(self, message)
 
     def rpc(self, command: str, payload: dict[str, Any] | None = None, timeout: float = 5):
@@ -191,6 +193,8 @@ class BandBridge:
         self.lock = threading.RLock()
         self.connections: dict[str, SerialConnection] = {}
         self.history = {owner: deque(maxlen=100) for owner in OWNERS}
+        # Frequent ranging samples are kept apart so they cannot evict messages.
+        self.telemetry_history = {owner: deque(maxlen=TELEMETRY_LIMIT) for owner in OWNERS}
         self.last_state: dict[str, dict[str, Any]] = {owner: {} for owner in OWNERS}
         self.stop = threading.Event()
         self.thread: threading.Thread | None = None
@@ -202,6 +206,9 @@ class BandBridge:
                 return
             self.event_sequence += 1
             event = {**message, "sequence": self.event_sequence, "receivedAt": int(time.time() * 1000)}
+            if message.get("type") == "range":
+                self.telemetry_history[connection.owner].append(event)
+                return
             if "sequence" in message:
                 event["deviceSequence"] = message["sequence"]
             self.history[connection.owner].append(event)
@@ -220,10 +227,13 @@ class BandBridge:
         state = {k: v for k, v in message.items()
                  if k not in ("type", "id", "ok", "owner", "port", "connected")}
         self.last_state[owner].update(state)
-        if ("location" in message or "peerLocation" in message) and "guidance" not in message:
-            # Full firmware status omits guidance when either position is stale
-            # or cleared. Do not retain a former valid bearing in the cache.
-            self.last_state[owner].pop("guidance", None)
+        if "location" in message or "peerLocation" in message:
+            # A full status describes the band's current measurements. Omitted
+            # guidance or ranging blocks must not leave an old claim cached.
+            self.last_state[owner]["statusReceivedAt"] = int(time.time() * 1000)
+            for field in ("guidance", *MEASUREMENT_FIELDS):
+                if field not in message:
+                    self.last_state[owner].pop(field, None)
 
     def connect_port(self, port: str) -> bool:
         """Return true only after hello verifies a unique owner and MAC."""
@@ -297,6 +307,10 @@ class BandBridge:
     def events(self, owner: str, after: int = 0):
         with self.lock:
             return [dict(event) for event in self.history[owner] if event["sequence"] > after]
+
+    def telemetry(self, owner: str, after: int = 0):
+        with self.lock:
+            return [dict(sample) for sample in self.telemetry_history[owner] if sample["sequence"] > after]
 
     def command(self, owner: str, command: str, payload: dict[str, Any]):
         with self.lock:
@@ -443,7 +457,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 # Capture the current LCD atomically through the existing USB
                 # connection. This does not navigate, change fixes or save data.
                 self._respond(200, self.server.bridge.command(owner, "frame_snapshot", {}))
-            elif action == "events":
+            elif action in ("events", "telemetry"):
                 from urllib.parse import parse_qs
                 try:
                     after = int(parse_qs(query).get("after", ["0"])[0])
@@ -451,7 +465,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
                         raise ValueError()
                 except ValueError:
                     raise BridgeError("after must be a non-negative event sequence", 400)
-                self._respond(200, {"owner": owner, "events": self.server.bridge.events(owner, after)})
+                if action == "events":
+                    self._respond(200, {"owner": owner, "events": self.server.bridge.events(owner, after)})
+                else:
+                    self._respond(200, {"owner": owner, "samples": self.server.bridge.telemetry(owner, after)})
             else:
                 raise BridgeError("Unknown API endpoint", 404)
         except BridgeError as exc:

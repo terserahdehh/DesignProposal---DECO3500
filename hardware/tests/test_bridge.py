@@ -228,6 +228,49 @@ class BridgeTests(unittest.TestCase):
                           "peerLocation": {"valid": False}})
         eventually(lambda: self.assertNotIn("guidance", self.bridge.snapshot("nayaka")))
 
+    def test_status_without_measurements_removes_cached_range_and_proximity(self):
+        self.connect()
+        self.nayaka.emit({"type": "status", "owner": "nayaka", "location": {"valid": False},
+                          "range": {"valid": True, "metres": 0.4}, "proximity": {"active": True, "beepIntervalMillis": 170},
+                          "find": {"mode": "distance"}})
+        eventually(lambda: self.assertIn("range", self.bridge.snapshot("nayaka")))
+        # Firmware without a current measurement block must not inherit the old one.
+        self.nayaka.emit({"type": "status", "owner": "nayaka", "location": {"valid": False}})
+        def cleared():
+            snapshot = self.bridge.snapshot("nayaka")
+            for field in ("range", "proximity", "find"):
+                self.assertNotIn(field, snapshot)
+        eventually(cleared)
+
+    def test_snapshot_reports_when_the_last_full_status_arrived(self):
+        self.connect()
+        before = int(time.time() * 1000)
+        self.nayaka.emit({"type": "status", "owner": "nayaka", "location": {"valid": False}})
+        eventually(lambda: self.assertGreaterEqual(self.bridge.snapshot("nayaka").get("statusReceivedAt", 0), before))
+        stamp = self.bridge.snapshot("nayaka")["statusReceivedAt"]
+        time.sleep(0.01)
+        # Partial events do not make an old measurement look fresh.
+        self.nayaka.emit({"type": "dismissed", "owner": "nayaka", "unread": False})
+        eventually(lambda: self.assertIs(self.bridge.snapshot("nayaka").get("unread"), False))
+        self.assertEqual(self.bridge.snapshot("nayaka")["statusReceivedAt"], stamp)
+
+    def test_range_telemetry_is_timestamped_and_kept_out_of_message_history(self):
+        self.connect()
+        self.syifa.emit({"type": "message", "owner": "syifa", "from": "nayaka", "text": "Hello", "sequence": 7})
+        eventually(lambda: self.assertEqual(len(self.bridge.events("syifa")), 1))
+        for index in range(250):
+            self.syifa.emit({"type": "range", "owner": "syifa", "t": index, "valid": True, "metres": 0.4})
+        eventually(lambda: self.assertEqual([sample["t"] for sample in self.bridge.telemetry("syifa")][-1:], [249]))
+        # Frequent ranging samples cannot evict the latest message popup event.
+        self.assertEqual([event["type"] for event in self.bridge.events("syifa")], ["message"])
+        samples = self.bridge.telemetry("syifa")
+        self.assertTrue(all(sample["type"] == "range" and "receivedAt" in sample for sample in samples))
+        self.assertLessEqual(len(samples), bridge.TELEMETRY_LIMIT)
+        self.assertEqual(self.bridge.telemetry("syifa", samples[-2]["sequence"]), samples[-1:])
+        self.assertEqual(self.bridge.telemetry("nayaka"), [])
+        # Range samples do not overwrite the band's full status snapshot.
+        self.assertNotIn("metres", self.bridge.snapshot("syifa"))
+
     def test_background_reconnect_recovers_disconnected_owner(self):
         self.connect()
         self.bridge.connections["nayaka"].close()
@@ -442,6 +485,21 @@ class HTTPTests(unittest.TestCase):
         status, result, _ = self.request("POST", "/api/bands/nayaka/send", {"text": "Hello"})
         self.assertEqual(status, 504)
         self.assertIn("acknowledge", result["error"])
+
+    def test_telemetry_endpoint_reads_range_samples_with_a_cursor(self):
+        self.device.emit({"type": "range", "owner": "nayaka", "t": 1, "valid": True, "metres": 0.4})
+        self.device.emit({"type": "range", "owner": "nayaka", "t": 2, "valid": False, "state": "stale"})
+        eventually(lambda: self.assertEqual(len(self.bridge.telemetry("nayaka")), 2))
+        status, result, headers = self.request("GET", "/api/bands/nayaka/telemetry?after=0")
+        self.assertEqual(status, 200)
+        self.assertEqual([sample["t"] for sample in result["samples"]], [1, 2])
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        after = result["samples"][0]["sequence"]
+        status, result, _ = self.request("GET", f"/api/bands/nayaka/telemetry?after={after}")
+        self.assertEqual([sample["state"] for sample in result["samples"]], ["stale"])
+        status, _, _ = self.request("GET", "/api/bands/nayaka/telemetry?after=-1")
+        self.assertEqual(status, 400)
+        self.assertEqual(len(self.device.commands), 1)  # read-only: hello only.
 
     def test_events_cursor_and_location_status(self):
         self.device.emit({"type": "message", "owner": "nayaka", "sender": "syifa", "text": "Meet me"})
