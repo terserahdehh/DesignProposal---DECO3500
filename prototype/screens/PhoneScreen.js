@@ -8,6 +8,7 @@ import { createPhoneBluetooth } from '../utils/phoneBluetooth';
 import { describeBandStatus, initialTransportMode } from '../utils/bandStatus';
 import DirectionRing from '../components/DirectionRing';
 import { directionGlow } from '../utils/directionGlow';
+import { createLocationSharing } from '../utils/locationSharing';
 
 const NAMES = { nayaka: 'Nayaka', syifa: 'Syifa' };
 const COLOURS = { nayaka: THEME.purple, syifa: THEME.yellow };
@@ -48,9 +49,8 @@ export default function PhoneScreen() {
   const [locationNotice, setLocationNotice] = useState(null);
   const [locating, setLocating] = useState(false);
   const [watching, setWatching] = useState(false);
-  const watchId = useRef(null);
+  const locationSharing = useRef(null);
   const locationSession = useRef(0);
-  const locationSending = useRef(null);
   const mounted = useRef(true);
   const [now, setNow] = useState(Date.now);
   const [statusReceivedAt, setStatusReceivedAt] = useState(0);
@@ -81,8 +81,8 @@ export default function PhoneScreen() {
   useEffect(() => {
     if (connected) return;
     locationSession.current += 1;
-    if (watchId.current !== null) geolocation?.clearWatch(watchId.current);
-    watchId.current = null;
+    locationSharing.current?.stop();
+    locationSharing.current = null;
     setWatching(false);
     setLocating(false);
     setLocation(null);
@@ -116,8 +116,8 @@ export default function PhoneScreen() {
 
   useEffect(() => {
     locationSession.current += 1;
-    if (watchId.current !== null) geolocation?.clearWatch(watchId.current);
-    watchId.current = null;
+    locationSharing.current?.stop();
+    locationSharing.current = null;
     setWatching(false);
     setLocating(false);
     setLocation(null);
@@ -125,8 +125,8 @@ export default function PhoneScreen() {
     setHiddenIncomingKey(null);
     return () => {
       locationSession.current += 1;
-      if (watchId.current !== null) geolocation?.clearWatch(watchId.current);
-      watchId.current = null;
+      locationSharing.current?.stop();
+      locationSharing.current = null;
     };
   }, [owner, transport]);
 
@@ -226,8 +226,8 @@ export default function PhoneScreen() {
 
   async function stopSharing() {
     locationSession.current += 1;
-    if (watchId.current !== null) geolocation?.clearWatch(watchId.current);
-    watchId.current = null;
+    locationSharing.current?.stop();
+    locationSharing.current = null;
     setWatching(false); setLocating(true);
     const session = locationSession.current;
     try {
@@ -241,19 +241,19 @@ export default function PhoneScreen() {
   }
 
   async function sendLocation(position, session) {
-    if (session !== locationSession.current || locationSending.current === session) return;
+    if (session !== locationSession.current) return;
     const fix = { lat: position.coords.latitude, lon: position.coords.longitude, accuracy: position.coords.accuracy, timestamp: position.timestamp, simulated: false };
-    locationSending.current = session;
     setLocating(true);
     try {
       await transport.shareLocation(owner, fix);
       if (session !== locationSession.current || !mounted.current) return;
       setLocation(fix);
-      setLocationNotice({ kind: 'success', text: `${NAMES[owner]}'s band acknowledged this phone's location. Both wearers must share from their own phones for guidance.` });
+      const coarse = fix.accuracy > 100;
+      setLocationNotice({ kind: coarse ? 'warning' : 'success', text: `${NAMES[owner]}'s band acknowledged this device's location (accuracy ±${Math.round(fix.accuracy)} m). ${coarse ? 'This fix is coarse and may not support a direction. Try an Android phone outdoors.' : 'Both wearers need fresh, independently obtained locations for guidance.'}` });
     } catch (error) {
       if (session === locationSession.current && mounted.current) setLocationNotice({ kind: 'error', text: error.message });
+      throw error;
     } finally {
-      if (locationSending.current === session) locationSending.current = null;
       if (session === locationSession.current && mounted.current) setLocating(false);
     }
   }
@@ -264,23 +264,21 @@ export default function PhoneScreen() {
       setLocationNotice({ kind: 'error', text: 'Phone location requires an HTTPS page or localhost and a browser with location support.' }); return;
     }
     const session = ++locationSession.current;
+    locationSharing.current?.stop();
     setLocating(true);
-    setLocationNotice({ kind: 'info', text: 'Allow browser location access to share this phone’s real position.' });
-    const onError = error => {
-      if (session !== locationSession.current || !mounted.current) return;
-      const reason = error.code === 1 ? 'Location permission was denied. Allow access in your browser settings to try again.' : error.code === 2 ? 'Phone location is unavailable. Move somewhere with a clearer location signal and try again.' : 'Getting your phone location timed out. Try again.';
-      if (error.code === 1) {
-        if (watchId.current !== null) geolocation.clearWatch(watchId.current);
-        watchId.current = null;
-        setWatching(false);
-      }
-      setLocating(false); setLocationNotice({ kind: 'error', text: reason });
-    };
-    const options = { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 };
-    if (continuous) {
-      setWatching(true);
-      watchId.current = geolocation.watchPosition(position => sendLocation(position, session), onError, options);
-    } else geolocation.getCurrentPosition(position => sendLocation(position, session), onError, options);
+    setWatching(continuous);
+    setLocationNotice({ kind: 'info', text: 'Allow browser and OS location access. Requesting a fresh location from this device…' });
+    locationSharing.current = createLocationSharing({
+      geolocation, document: typeof document === 'undefined' ? undefined : document,
+      onPosition: position => sendLocation(position, session),
+      onNotice: text => { if (session === locationSession.current && mounted.current) setLocationNotice({ kind: 'info', text }); },
+      onError: error => {
+        if (session !== locationSession.current || !mounted.current) return;
+        if (error.stopped) { locationSession.current++; setWatching(false); }
+        setLocating(false); setLocationNotice({ kind: 'error', text: error.message });
+      },
+    });
+    locationSharing.current.start(continuous);
   }
 
   function stepPreview(direction) {
@@ -327,13 +325,15 @@ export default function PhoneScreen() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>FIND YOUR FRIEND</Text><Text accessibilityRole="header" style={styles.cardTitle}>Share this phone’s location.</Text>
+            <Text style={styles.cardLabel}>FIND YOUR FRIEND</Text><Text accessibilityRole="header" style={styles.cardTitle}>Share this device’s location.</Text>
             <Text style={styles.note}>The bands have no GPS or compass. Share each wearer’s real phone location to their own band. The band shows distance and a bearing from north; use a phone compass to orient yourself.</Text>
             <View style={styles.actionRow}>{!watching && <><Button testID="share-location" primary disabled={!connected || locating || syncing} onPress={() => startSharing(false)}>{locating ? 'Getting location…' : 'Share location once'}</Button><Button testID="watch-location" disabled={!connected || locating || syncing} onPress={() => startSharing(true)}>Keep location updated</Button></>}{(watching || location) && <Button testID="stop-location" disabled={locating && !watching} onPress={stopSharing}>Stop sharing location</Button>}</View>
             {watching && <Text style={styles.liveLocation}>● Automatic location updates are active for {NAMES[owner]}.</Text>}
-            {location && <View style={styles.locationBox}><Text style={styles.locationText}>{location.lat.toFixed(5)}, {location.lon.toFixed(5)}</Text><Text style={styles.tinyNote}>Real phone fix · accuracy ±{Math.round(location.accuracy)} m · shared {new Date(location.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></View>}
+            {watching && <Button testID="retry-location" disabled={locating} onPress={() => locationSharing.current?.retry()}>Retry fresh location</Button>}
+            {location && <View style={styles.locationBox}><Text style={styles.locationText}>{location.lat.toFixed(5)}, {location.lon.toFixed(5)}</Text><Text testID="location-freshness" style={styles.tinyNote}>Device fix · accuracy ±{Math.round(location.accuracy)} m · {now - location.timestamp >= 60000 ? 'EXPIRED — waiting for a new device fix' : `${Math.max(0, Math.floor((now - location.timestamp) / 1000))} s old`} · obtained {new Date(location.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></View>}
             {locationNotice && <Text testID="location-notice" accessibilityLiveRegion="polite" style={[styles.notice, locationNotice.kind === 'error' && styles.error, locationNotice.kind === 'success' && styles.success]}>{locationNotice.text}</Text>}
-            <Text style={styles.tinyNote}>Location requires HTTPS or localhost. Leave this page open for automatic updates. GPS accuracy and stale fixes limit guidance, especially inside a crowded venue.</Text>
+            <Text style={styles.tinyNote}>Location requires HTTPS or localhost and separate Chrome/OS permission—even when Bluetooth is connected. Laptop locations may be coarse or identical; use each wearer’s own Android phone outdoors for moving-person guidance.</Text>
+            <Text style={styles.tinyNote}>Keep this page visible and the device awake. Automatic mode requests fresh fixes every 20 seconds, including while stationary, and retries when you return to the page. Browsers can suspend Bluetooth/location in the background; fixes expire after 60 seconds.</Text>
             <Text style={styles.tinyNote}>Switching wearer or connection stops browser updates. The previous band keeps its last fix until it expires; use Stop sharing location to request clearing.</Text>
           </View>
           <View testID="live-band-status" style={styles.card}>
