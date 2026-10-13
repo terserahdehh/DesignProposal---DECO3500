@@ -3,12 +3,13 @@ import { View } from 'react-native';
 import Svg, { Circle, Path, G } from 'react-native-svg';
 import { arcPath, DIRECTION_ARROW_PATH } from '../utils/directionGlow';
 
-export default function DirectionRing({ bearing, brightness, colour, diameter, arrow = false, demo = false, walkUncertainty }) {
+export default function DirectionRing({ bearing, brightness, colour, diameter, arrow = false, demo = false, walkUncertainty, probeUncertainty }) {
   if (!Number.isFinite(bearing) || !Number.isFinite(brightness) || !Number.isFinite(diameter) || diameter <= 0) return null;
   const light = Math.max(0, Math.min(1, brightness));
   const percent = `${Math.round(light * 100)} percent brightness`;
   const label = demo ? `DEMO direction, not measured, at ${Math.round(bearing)} degrees, ${percent}`
     : Number.isFinite(walkUncertainty) ? `Walk estimate at ${Math.round(bearing)} degrees, plus or minus ${Math.round(walkUncertainty)} degrees, ${percent}`
+    : Number.isFinite(probeUncertainty) ? `Warmer/colder estimate at ${Math.round(bearing)} degrees, plus or minus ${Math.round(probeUncertainty)} degrees, ${percent}`
     : `${arrow ? 'North-up direction' : 'Direction light'} at ${Math.round(bearing)} degrees${arrow ? ' clockwise from north' : ''}, ${percent}`;
   return <View testID="direction-ring" pointerEvents="none" accessibilityRole="image" accessibilityLabel={label} style={{ width: diameter, height: diameter }}>
     <Svg width={diameter} height={diameter} viewBox="0 0 100 100">

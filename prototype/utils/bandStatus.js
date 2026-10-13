@@ -10,6 +10,14 @@ const WALK_HINTS = {
   'no-imu': 'The motion sensor is unavailable, so no direction can be estimated.',
 };
 
+const PROBE_HINTS = {
+  none: 'To find the direction, aim the top of the band, move it forward and stop for 2 seconds.',
+  'no-change': 'That move did not change the distance enough: aim somewhere else and try again.',
+  turned: 'The band turned while moving: keep the same aim while you move it.',
+  'not-enough-readings': 'Stop for 2 seconds before and after each move.',
+  interrupted: 'Stop for 2 seconds before and after each move.',
+};
+
 function initialTransportMode(location) {
   return location?.protocol === 'https:' && !['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname) ? 'bluetooth' : 'usb';
 }
@@ -35,6 +43,13 @@ function describeBandStatus(band, owner, connected, observedAt, now = Date.now()
       Number.isFinite(walkUncertainty) && walkUncertainty >= 0 && walkUncertainty <= 45)
     return { ...state, mode: 'walk', walkBearing, walkUncertaintyDegrees: walkUncertainty, title: `Estimated direction to ${name(peer)}`,
       detail: `ESTIMATED FROM YOUR WALK: ${Math.round(walkBearing)}° clockwise from the top of the band, ±${Math.round(walkUncertainty)}°. It assumes ${name(peer)} stays still while you walk. ${proximity.label}.` };
+  const { probeBearing, probeUncertaintyDegrees: probeUncertainty } = band.find || {};
+  if (findMode === 'probe-estimate' && measuredDistance && Number.isFinite(probeBearing) && probeBearing >= 0 && probeBearing < 360 &&
+      Number.isFinite(probeUncertainty) && probeUncertainty >= 0 && probeUncertainty <= 100) {
+    const moves = Number.isInteger(band.find.probe?.probes) ? band.find.probe.probes : 0;
+    return { ...state, mode: 'probe', probeBearing, probeUncertaintyDegrees: probeUncertainty, title: `Warmer/colder direction to ${name(peer)}`,
+      detail: `ESTIMATED FROM YOUR MOVES: ${Math.round(probeBearing)}° clockwise from the top of the band, ±${Math.round(probeUncertainty)}°, from ${moves} move${moves === 1 ? '' : 's'} where the measured distance shrank or grew. ${proximity.label}.` };
+  }
   const demoBearing = band.find?.demoBearing;
   if (findMode === 'demo-direction' && proximity.active && proximity.source === 'wifi-ftm' &&
       Number.isFinite(demoBearing) && demoBearing >= 0 && demoBearing < 360)
@@ -42,7 +57,7 @@ function describeBandStatus(band, owner, connected, observedAt, now = Date.now()
       detail: `DEMO DIRECTION — NOT MEASURED. The arrow points where it was set with < and > on the band; it does not follow the other band. ${proximity.label}; brightness and beeps follow this measured distance.` };
   if (findMode === 'distance' && proximity.active && proximity.source === 'wifi-ftm')
     return { ...state, mode: 'distance', title: `Distance to ${name(peer)} · no direction yet`,
-      detail: `${proximity.label}. These bands have no compass or direction-finding radio. ${WALK_HINTS[band.find?.walk?.state] || WALK_HINTS.walk} The ring brightens and pulses faster as the measured distance shrinks.` };
+      detail: `${proximity.label}. These bands have no compass or direction-finding radio. ${PROBE_HINTS[band.find?.probe?.last] || PROBE_HINTS.none} Over longer distances: ${WALK_HINTS[band.find?.walk?.state] || WALK_HINTS.walk} The ring brightens and pulses faster as the measured distance shrinks.` };
   if (!fresh(band.location) || !fresh(band.peerLocation)) {
     const missing = [!fresh(band.location) && name(owner), !fresh(band.peerLocation) && name(peer)].filter(Boolean).join(' and ');
     return { ...state, detail: `${missing} needs a fresh location. On each missing wearer’s device, connect their matching band and press Keep location updated. Keep the pages visible and allow location access.` };

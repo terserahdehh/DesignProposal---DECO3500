@@ -83,7 +83,39 @@ static void deskVibrationIsNotAStep() {
   assert(sim.tracker.steps() == 0);
 }
 
+static void stillnessTellsMovesApart() {
+  Sim sim;
+  sim.rest(2);
+  assert(sim.tracker.stillSeconds() >= 1);
+  sim.walk(0.5);
+  assert(sim.tracker.stillSeconds() < 0.1);
+  sim.rest(0.3);
+  assert(sim.tracker.stillSeconds() > 0.2 && sim.tracker.stillSeconds() < 0.4);
+  sim.turn(30, 1);
+  assert(sim.tracker.stillSeconds() < 0.1);  // turning in place is motion
+}
+
+static void aWrongGyroOffsetIsRelearnedWhileLyingStill() {
+  // Observed on Nayaka's band: after slow handling the learned offset was
+  // ~3 deg/s off, the band never counted as still again and the heading
+  // drifted ~3 deg/s while it lay on the desk.
+  Sim sim;
+  sim.rest(2);
+  sim.bias[2] += 3.5;
+  sim.rest(8);
+  assert(sim.tracker.stillSeconds() > 1);
+  const double before = sim.tracker.headingDegrees();
+  sim.rest(3);
+  assert(std::abs(sim.tracker.headingDegrees() - before) < 0.5);
+  // A real turn afterwards is still measured, not absorbed.
+  sim.tracker.reset();
+  sim.turn(90);
+  assert(std::abs(sim.tracker.headingDegrees() - 90) < 2);
+}
+
 int main() {
+  aWrongGyroOffsetIsRelearnedWhileLyingStill();
+  stillnessTellsMovesApart();
   restingBandCountsNothingAndLearnsGyroOffset();
   walkingCountsStepsForward();
   turningRotatesTheHeadingClockwise();

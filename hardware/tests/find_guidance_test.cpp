@@ -241,7 +241,44 @@ static void walkEstimateShowsAnArrowWithItsUncertainty() {
   assert(gpsWins.mode == FindMode::Direction && !gpsWins.walkEstimate);
 }
 
+static FindInputs probed(double bearing, double uncertainty, RangeReading measured = range(0.5)) {
+  FindInputs inputs{true, true, false, false, NAN, NAN, directionQuality(NAN, 0, 0), measured};
+  inputs.probeBearing = bearing;
+  inputs.probeUncertaintyDegrees = uncertainty;
+  return inputs;
+}
+
+static void warmerColderProbesShowALabelledArrow() {
+  for (double bearing : {0.0, 90.0, 359.0, -45.0}) {
+    auto shown = findGuidance(probed(bearing, 64));
+    const double normalized = std::fmod(std::fmod(bearing, 360) + 360, 360);
+    assert(shown.mode == FindMode::ProbeEstimate && shown.probeEstimate);
+    assert(!shown.directionUsable && !shown.walkEstimate && !shown.demoDirection);
+    assert(shown.ring == RingShape::Quarter && shown.visuals.arrow.visible);
+    assert(angularGap(shown.visuals.light.bearing, normalized) < 1e-9);
+    assert(angularGap(tipBearing(shown.visuals.arrow), normalized) < 3);
+    assert(shown.probeUncertaintyDegrees == 64);
+    assert(shown.beepIntervalMs == proximityFeedback(true, 0.5).beepIntervalMs);
+  }
+  assert(findGuidance(probed(90, PROBE_MAX_UNCERTAINTY_DEGREES + 1)).mode == FindMode::DistanceOnly);
+  assert(findGuidance(probed(90, NAN)).mode == FindMode::DistanceOnly);
+  assert(findGuidance(probed(90, 64, NO_RANGE)).mode == FindMode::Unavailable);
+  auto offline = probed(90, 64);
+  offline.peerConnected = false;
+  assert(findGuidance(offline).mode == FindMode::Offline);
+  // Priority: GPS > walk estimate > warmer/colder > demo.
+  auto withDemo = probed(90, 64);
+  withDemo.demoBearing = 270;
+  assert(findGuidance(withDemo).mode == FindMode::ProbeEstimate);
+  auto withWalk = probed(90, 64, range(6, 1.5));
+  withWalk.walkBearing = 10;
+  withWalk.walkUncertaintyDegrees = 20;
+  auto walk = findGuidance(withWalk);
+  assert(walk.mode == FindMode::WalkEstimate && angularGap(walk.visuals.light.bearing, 10) < 1e-9);
+}
+
 static void namesForStatus() {
+  assert(std::strcmp(findModeName(FindMode::ProbeEstimate), "probe-estimate") == 0);
   assert(std::strcmp(findModeName(FindMode::WalkEstimate), "walk-estimate") == 0);
   assert(std::strcmp(findModeName(FindMode::DemoDirection), "demo-direction") == 0);
   assert(std::strcmp(findModeName(FindMode::DistanceOnly), "distance") == 0);
@@ -265,6 +302,7 @@ int main() {
   labelledDemoDirectionUsesTheRealDistance();
   demoControlsRotateInFortyFiveDegreeSteps();
   walkEstimateShowsAnArrowWithItsUncertainty();
+  warmerColderProbesShowALabelledArrow();
   namesForStatus();
   std::cout << "PASS: arrow/ring alignment and wraparound, distance-only ring, unusable GPS, contradiction, offline/stale/recovery, labelled demo direction\n";
 }

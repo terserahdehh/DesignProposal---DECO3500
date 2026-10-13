@@ -19,12 +19,16 @@ constexpr double PDR_STILL_GYRO_DPS = 3.0;
 constexpr double PDR_STILL_ACCEL_G = 0.02;
 constexpr double PDR_STILL_SECONDS = 0.5;
 constexpr double PDR_MAX_OFFSET_DPS = 10.0;
+// A hand cannot hold a perfectly steady rotation this long: a band this
+// steady is lying still, even if the learned offset has drifted.
+constexpr double PDR_RELEARN_STEADY_SECONDS = 3.0;
+constexpr double PDR_RELEARN_MAX_ERROR_DPS = 6.0;
 
 class WalkTracker {
   bool started_ = false, biasKnown_ = false, armed_ = true, above_ = false;
   uint32_t last_ = 0, lastStep_ = 0;
   double up_[3] = {0, 0, 1}, gravity_ = 1, normAverage_ = 1, gyroAverage_[3] = {}, bias_[3] = {};
-  double stillSeconds_ = 0, heading_ = 0, x_ = 0, y_ = 0, vertical_ = 0;
+  double stillSeconds_ = 0, steadySeconds_ = 0, heading_ = 0, x_ = 0, y_ = 0, vertical_ = 0;
   int steps_ = 0;
 
  public:
@@ -64,10 +68,20 @@ class WalkTracker {
 
     // Still: steady gravity and no rotation. Before the offset is known, a
     // small constant reading is the offset; afterwards, turns are excluded.
-    bool quiet = std::abs(norm - normAverage_) < PDR_STILL_ACCEL_G;
-    for (int i = 0; i < 3; ++i)
+    bool steady = std::abs(norm - normAverage_) < PDR_STILL_ACCEL_G, quiet = steady;
+    double offsetError = 0;
+    for (int i = 0; i < 3; ++i) {
+      steady = steady && std::abs(g[i] - gyroAverage_[i]) < 1.0;
+      offsetError = std::fmax(offsetError, std::abs(gyroAverage_[i] - bias_[i]));
       quiet = quiet && (biasKnown_ ? std::abs(g[i] - bias_[i]) < PDR_STILL_GYRO_DPS
                                    : std::abs(g[i]) < PDR_MAX_OFFSET_DPS && std::abs(g[i] - gyroAverage_[i]) < 1.0);
+    }
+    steadySeconds_ = steady ? steadySeconds_ + dt : 0;
+    if (biasKnown_ && !quiet && steadySeconds_ >= PDR_RELEARN_STEADY_SECONDS && offsetError < PDR_RELEARN_MAX_ERROR_DPS) {
+      for (int i = 0; i < 3; ++i) bias_[i] = gyroAverage_[i];
+      stillSeconds_ = steadySeconds_;
+      quiet = true;
+    }
     stillSeconds_ = quiet ? stillSeconds_ + dt : 0;
     if (stillSeconds_ >= PDR_STILL_SECONDS) {
       for (int i = 0; i < 3; ++i) bias_[i] = biasKnown_ ? bias_[i] + (gyroAverage_[i] - bias_[i]) * 0.05 : gyroAverage_[i];
@@ -100,4 +114,6 @@ class WalkTracker {
   double y() const { return y_; }
   int steps() const { return steps_; }
   bool biasKnown() const { return biasKnown_; }
+  // How long gravity has been steady with no rotation; near 0 while moving.
+  double stillSeconds() const { return stillSeconds_; }
 };

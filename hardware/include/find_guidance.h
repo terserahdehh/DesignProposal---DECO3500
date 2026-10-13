@@ -7,8 +7,9 @@
 #include "proximity.h"
 #include "ranging.h"
 #include "walk_locate.h"
+#include "probe_compass.h"
 
-enum class FindMode : uint8_t { Offline, Unavailable, Uncertain, DistanceOnly, Direction, DemoDirection, WalkEstimate };
+enum class FindMode : uint8_t { Offline, Unavailable, Uncertain, DistanceOnly, Direction, DemoDirection, WalkEstimate, ProbeEstimate };
 enum class DistanceSource : uint8_t { None, WifiRange, PhoneGps };
 enum class RingShape : uint8_t { None, Quarter, Full };
 
@@ -20,6 +21,8 @@ struct FindInputs {
   double demoBearing = NAN;  // set by the wearer with < and >; never measured
   // Walk-to-find estimate, already relative to the band's current heading.
   double walkBearing = NAN, walkUncertaintyDegrees = NAN;
+  // Warmer/colder probes, also relative to the band's current heading.
+  double probeBearing = NAN, probeUncertaintyDegrees = NAN;
 };
 
 struct FindGuidance {
@@ -37,6 +40,8 @@ struct FindGuidance {
   double demoBearing;
   bool walkEstimate;
   double walkUncertaintyDegrees;
+  bool probeEstimate;
+  double probeUncertaintyDegrees;
 };
 
 // One decision feeds the LCD, status JSON and beeps. Usable phone GPS gives a
@@ -46,7 +51,7 @@ struct FindGuidance {
 inline FindGuidance findGuidance(const FindInputs &in) {
   FindGuidance guidance{FindMode::Offline, DistanceSource::None, false, NAN, NAN, false, NAN,
                         directionVisuals(false, false, false, false, false, NAN, NAN), RingShape::None,
-                        proximityFeedback(false, NAN), 0, false, NAN, false, NAN};
+                        proximityFeedback(false, NAN), 0, false, NAN, false, NAN, false, NAN};
   if (!in.peerConnected) return guidance;
   const bool locations = in.localFresh && in.peerFresh;
   const bool ranged = in.range.valid && std::isfinite(in.range.metres) && in.range.metres >= 0 &&
@@ -71,20 +76,25 @@ inline FindGuidance findGuidance(const FindInputs &in) {
   // Estimates need a current measured distance and yield to a real direction.
   const bool walk = !direction && ranged && std::isfinite(in.walkBearing) &&
                     in.walkUncertaintyDegrees >= 0 && in.walkUncertaintyDegrees <= WALK_MAX_BEARING_UNCERTAINTY_DEGREES;
-  const bool demo = !direction && !walk && ranged && std::isfinite(in.demoBearing);
-  guidance.mode = direction ? FindMode::Direction : walk ? FindMode::WalkEstimate : demo ? FindMode::DemoDirection
-                : ranged ? FindMode::DistanceOnly : locations ? FindMode::Uncertain : FindMode::Unavailable;
+  const bool probe = !direction && !walk && ranged && std::isfinite(in.probeBearing) &&
+                     in.probeUncertaintyDegrees >= 0 && in.probeUncertaintyDegrees <= PROBE_MAX_UNCERTAINTY_DEGREES;
+  const bool demo = !direction && !walk && !probe && ranged && std::isfinite(in.demoBearing);
+  guidance.mode = direction ? FindMode::Direction : walk ? FindMode::WalkEstimate : probe ? FindMode::ProbeEstimate
+                : demo ? FindMode::DemoDirection : ranged ? FindMode::DistanceOnly
+                : locations ? FindMode::Uncertain : FindMode::Unavailable;
   guidance.directionUsable = direction;
   if (direction) guidance.bearing = std::fmod(std::fmod(in.gpsBearing, 360.0) + 360.0, 360.0);
   guidance.demoDirection = demo;
   if (demo) guidance.demoBearing = std::fmod(std::fmod(in.demoBearing, 360.0) + 360.0, 360.0);
   guidance.walkEstimate = walk;
   if (walk) guidance.walkUncertaintyDegrees = in.walkUncertaintyDegrees;
+  guidance.probeEstimate = probe;
+  if (probe) guidance.probeUncertaintyDegrees = in.probeUncertaintyDegrees;
   guidance.proximity = proximityFeedback(guidance.distanceKnown, guidance.metres);
   if (!in.finding) return guidance;
 
-  if (direction || walk || demo) {
-    const double shown = direction ? in.gpsBearing : walk ? in.walkBearing : in.demoBearing;
+  if (direction || walk || probe || demo) {
+    const double shown = direction ? in.gpsBearing : walk ? in.walkBearing : probe ? in.probeBearing : in.demoBearing;
     guidance.visuals = directionVisuals(true, true, true, true, true, shown, guidance.metres);
     if (guidance.visuals.light.visible) guidance.ring = RingShape::Quarter;
   } else if (ranged) {
@@ -105,6 +115,7 @@ inline const char *findModeName(FindMode mode) {
     case FindMode::Direction: return "direction";
     case FindMode::DemoDirection: return "demo-direction";
     case FindMode::WalkEstimate: return "walk-estimate";
+    case FindMode::ProbeEstimate: return "probe-estimate";
     case FindMode::DistanceOnly: return "distance";
     case FindMode::Uncertain: return "uncertain";
     case FindMode::Unavailable: return "unavailable";

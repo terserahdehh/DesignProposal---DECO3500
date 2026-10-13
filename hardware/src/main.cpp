@@ -79,6 +79,15 @@ QueueHandle_t imuQueue;bool imuReady=false,imuStreaming=false;uint32_t imuSample
 // Walk-to-find: the seeker's path (steps + turns) and ranges taken along it.
 WalkTracker walker;WalkRange walkRanges[WALK_MAX_SAMPLES];int walkCount=0;
 WalkFix walkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};
+// Warmer/colder: aim the band's top, move forward, stop; distance change votes.
+ProbeCompass prober;
+const char *probeResultName(ProbeResult result){
+  switch(result){
+    case ProbeResult::Counted:return "counted";case ProbeResult::NoChange:return "no-change";
+    case ProbeResult::Turned:return "turned";case ProbeResult::NotEnoughReadings:return "not-enough-readings";
+    case ProbeResult::Interrupted:return "interrupted";default:return "none";
+  }
+}
 bool imuWrite(uint8_t reg,uint8_t value){Wire.beginTransmission(IMU_ADDRESS);Wire.write(reg);Wire.write(value);return Wire.endTransmission()==0;}
 bool imuRead(uint8_t reg,uint8_t *out,uint8_t count){
   Wire.beginTransmission(IMU_ADDRESS);Wire.write(reg);if(Wire.endTransmission(false)!=0)return false;
@@ -108,11 +117,12 @@ void processImu(){
     ImuReading reading{sample.micros,{},{}};
     for(int axis=0;axis<3;axis++){reading.accel[axis]=sample.accel[axis]/8192.0;reading.gyro[axis]=sample.gyro[axis]/64.0;}
     walker.update(reading);imuSamples++;
+    prober.motion(walker.stillSeconds()<0.25,walker.headingDegrees(),millis());
     // Serial-only raw stream for tuning step detection; off unless requested.
     if(imuStreaming)Serial.printf("M,%lu,%d,%d,%d,%d,%d,%d,%d\n",(unsigned long)sample.micros,sample.accel[0],sample.accel[1],sample.accel[2],sample.gyro[0],sample.gyro[1],sample.gyro[2],walker.steps());
   }
 }
-void startWalk(){walker.reset();walkCount=0;walkFix=WalkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};}
+void startWalk(){walker.reset();prober.reset();walkCount=0;walkFix=WalkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};}
 void addWalkRange(double metres){
   if(!imuReady||!std::isfinite(metres))return;
   const double x=walker.x(),y=walker.y();
@@ -134,6 +144,27 @@ const char *walkHint(){
   if(reason=="uncertain")return "Keep walking to aim";
   return "WALK + TURN to aim";
 }
+const char *probePhaseName(ProbePhase phase){
+  switch(phase){case ProbePhase::Ready:return "ready";case ProbePhase::Moving:return "moving";case ProbePhase::Measuring:return "measuring";default:return "waiting";}
+}
+// Tells the wearer when to move and when to hold still, then the result.
+const char *probeHint(){
+  if(!imuReady)return "No motion sensor";
+  switch(prober.phase()){
+    case ProbePhase::Waiting:return "Hold still...";
+    case ProbePhase::Moving:return "Moving... then STOP";
+    case ProbePhase::Measuring:return "Measuring: hold still";
+    default:break;
+  }
+  switch(prober.lastProbe()){
+    case ProbeResult::Counted:
+      if(!prober.estimate(millis(),walker.headingDegrees()).valid)return prober.lastChange()<0?"CLOSER. Now aim elsewhere":"FARTHER. Now aim elsewhere";
+      return prober.lastChange()<0?"CLOSER! Aim + move again":"FARTHER. Aim + move again";
+    case ProbeResult::NoChange:return "No change: aim elsewhere";
+    case ProbeResult::Turned:return "Turned: keep aim, retry";
+    default:return "READY: aim, move forward";
+  }
+}
 
 bool fresh(const Position &p) { return p.valid && uint32_t(millis()-p.received)<LOCATION_TTL; }
 bool peerConnected() { return lastPeer && uint32_t(millis()-lastPeer)<7000; }
@@ -147,6 +178,8 @@ FindGuidance currentGuidance(DirectionQuality *quality=nullptr) {
     inputs.walkBearing=walkArrowBearing(walkFix,walker.x(),walker.y(),walker.headingDegrees());
     inputs.walkUncertaintyDegrees=walkFix.uncertaintyFrom(walker.x(),walker.y());
   }
+  ProbeEstimate probe=prober.estimate(millis(),walker.headingDegrees());
+  if(probe.valid){inputs.probeBearing=probe.bearingFromTop;inputs.probeUncertaintyDegrees=probe.uncertaintyDegrees;}
   return findGuidance(inputs);
 }
 void output(JsonDocument &doc) {
@@ -203,6 +236,13 @@ void measurementJson(JsonDocument &doc,const FindGuidance &g) {
   auto walk=find.createNestedObject("walk");
   walk["state"]=imuReady?walkFix.reason:"no-imu";walk["samples"]=walkCount;walk["steps"]=walker.steps();
   walk["headingDegrees"]=walker.headingDegrees();walk["x"]=walker.x();walk["y"]=walker.y();
+  find["probeEstimate"]=g.probeEstimate;
+  if(g.probeEstimate){find["probeBearing"]=g.visuals.light.bearing;find["probeUncertaintyDegrees"]=g.probeUncertaintyDegrees;}
+  auto probe=find.createNestedObject("probe");
+  probe["last"]=imuReady?probeResultName(prober.lastProbe()):"no-imu";
+  probe["probes"]=prober.estimate(millis(),walker.headingDegrees()).probes;
+  probe["phase"]=probePhaseName(prober.phase());
+  if(std::isfinite(prober.lastChange()))probe["lastChangeMetres"]=prober.lastChange();
 }
 void status(JsonDocument &doc,bool full=true) {
   if(full)hardwareJson(doc);
@@ -300,7 +340,7 @@ void onFtmReport(arduino_event_t *event){
 void rangeEvent(const FtmReport &report,const RangeSession &session){
   // Serial-only telemetry for live accuracy/latency checks; not sent over BLE.
   RangeReading reading=rangeTracker.reading(report.at);FindGuidance g=currentGuidance();
-  StaticJsonDocument<512> doc;doc["type"]="range";doc["owner"]=OWNERS[SELF];doc["t"]=report.at;
+  StaticJsonDocument<1024> doc;doc["type"]="range";doc["owner"]=OWNERS[SELF];doc["t"]=report.at;
   doc["status"]=report.status;doc["frames"]=session.frames;doc["rssi"]=report.rssi;
   if(session.valid)doc["rawMetres"]=session.rawMetres;
   doc["valid"]=reading.valid;doc["state"]=reading.state;
@@ -312,6 +352,12 @@ void rangeEvent(const FtmReport &report,const RangeSession &session){
   walk["state"]=walkFix.reason;walk["samples"]=walkCount;walk["steps"]=walker.steps();
   walk["heading"]=walker.headingDegrees();walk["x"]=walker.x();walk["y"]=walker.y();
   if(g.walkEstimate){walk["bearing"]=g.visuals.light.bearing;walk["uncertainty"]=g.walkUncertaintyDegrees;}
+  ProbeEstimate estimate=prober.estimate(report.at,walker.headingDegrees());
+  auto probe=doc.createNestedObject("probe");
+  probe["last"]=probeResultName(prober.lastProbe());probe["probes"]=estimate.probes;
+  probe["still"]=walker.stillSeconds();probe["phase"]=probePhaseName(prober.phase());
+  if(std::isfinite(prober.lastChange()))probe["change"]=prober.lastChange();
+  if(estimate.valid){probe["bearing"]=estimate.bearingFromTop;probe["uncertainty"]=estimate.uncertaintyDegrees;}
   serializeJson(doc,Serial);Serial.println();
 }
 void processRanging(){
@@ -321,7 +367,13 @@ void processRanging(){
     if(!session.valid)ftmFailures++;
     if(report.frames)lastRangeRssi=report.rssi;
     rangeTracker.addSession(session,report.at);
-    if(view=="find"){dirty=true;if(session.valid)addWalkRange(calibratedRangeMetres(session.rawMetres));}
+    if(view=="find"){
+      dirty=true;
+      if(session.valid){
+        const double metres=calibratedRangeMetres(session.rawMetres);
+        addWalkRange(metres);prober.range(metres,report.at);
+      }
+    }
     rangeEvent(report,session);
   }
   uint32_t now=millis();
@@ -409,10 +461,10 @@ String accuracyText(double metres){
   if(metres>=10000)return "GPS accuracy > 10 km";
   return metres>=1000?"GPS +/- "+String(metres/1000,1)+" km":"GPS +/- "+String(metres,0)+" m";
 }
-FindMode renderedMode=FindMode::Offline;RingShape renderedRing=RingShape::None;
+FindMode renderedMode=FindMode::Offline;RingShape renderedRing=RingShape::None;ProbePhase renderedPhase=ProbePhase::Waiting;
 void render(){
   DirectionQuality quality;FindGuidance g=currentGuidance(&quality);
-  renderedMode=g.mode;renderedRing=g.ring;
+  renderedMode=g.mode;renderedRing=g.ring;renderedPhase=prober.phase();
   const uint16_t peerColour=OTHER==0?PURPLE:YELLOW;
   // With no buzzer fitted, the ring flashes on each beep and dims between.
   const double pulse=g.beepIntervalMs?(pulseOn?1.0:0.35):1.0;
@@ -458,6 +510,11 @@ void render(){
       frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
       label("WALK ESTIMATE +/-"+String(g.walkUncertaintyDegrees,0)+" deg",120,114,0x07ff,1);
       label(distance,120,172,0xffff,2);label(detail,120,183,0xbdf7,1);
+    }else if(g.mode==FindMode::ProbeEstimate){
+      DirectionArrow arrow=g.visuals.arrow;
+      frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
+      label("WARMER/COLDER +/-"+String(g.probeUncertaintyDegrees,0),120,114,0x07ff,1);
+      label(distance,120,172,0xffff,2);label(probeHint(),120,183,0xbdf7,1);
     }else if(g.mode==FindMode::DemoDirection){
       DirectionArrow arrow=g.visuals.arrow;
       frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
@@ -466,7 +523,7 @@ void render(){
       label(distance,120,172,0xffff,2);label(measured+" | < > turn",120,183,0xbdf7,1);
     }else if(g.mode==FindMode::DistanceOnly){
       label(distance,120,128,peerColour,4);label(detail,120,150,0xbdf7,1);
-      label(walkHint(),120,161,0x07ff,1);label("Closer = brighter, faster",120,172,0xbdf7,1);
+      label(probeHint(),120,161,0x07ff,1);label(walkHint(),120,172,0xbdf7,1);
       label("< > : demo direction",120,183,0xbdf7,1);
     }else if(g.mode==FindMode::Uncertain){
       label(distance,120,126);label("GPS too uncertain",120,145,0xbdf7);
@@ -697,7 +754,7 @@ void loop(){
   if(now-heartbeatAt>=2000){heartbeatAt=now;transmit(packet(HEARTBEAT));sharePosition();dirty=true;DynamicJsonDocument state(6144);state["type"]="status";status(state,false);output(state);}
   FindGuidance g=currentGuidance();
   // Expiry or loss must clear the ring promptly, not at the next heartbeat.
-  if(view=="find"&&(g.mode!=renderedMode||g.ring!=renderedRing))dirty=true;
+  if(view=="find"&&(g.mode!=renderedMode||g.ring!=renderedRing||prober.phase()!=renderedPhase))dirty=true;
   bool sounding=beeper.update(g.beepIntervalMs,now);
   bool flash=beeper.flashing(now);
   if(flash!=pulseOn){pulseOn=flash;if(view=="find")dirty=true;}

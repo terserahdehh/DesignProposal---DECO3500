@@ -409,6 +409,16 @@ test('a walk-to-find estimate shows a labelled arrow that disappears when the ba
   await expect(page.getByTestId('direction-detail')).toContainText('moved');
 });
 
+test('a warmer/colder estimate shows a labelled arrow from the band', async ({ page }) => {
+  await connect(page);
+  await page.evaluate(status => window.__band.notify(status), { ...measuredStatus(nearProximity),
+    find: { mode: 'probe-estimate', probeBearing: 45, probeUncertaintyDegrees: 64, probe: { last: 'counted', probes: 2 } } });
+  await expect(page.getByTestId('direction-title')).toContainText('Warmer/colder');
+  await expect(page.getByTestId('direction-ring')).toHaveAttribute('aria-label', /Warmer\/colder estimate at 45 degrees, plus or minus 64 degrees, 81 percent/);
+  await expect(page.getByTestId('direction-arrow')).toBeVisible();
+  await expect(page.getByTestId('probe-estimate-caption')).toContainText('FROM YOUR MOVES');
+});
+
 test('unsupported Bluetooth leaves the message editor usable without hardware writes', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: null }));
   await page.route('http://localhost:8787/**', route => route.fulfill({ json: { bands: [] } }));

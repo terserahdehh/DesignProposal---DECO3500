@@ -115,6 +115,23 @@ test('a walk-to-find estimate is shown with its uncertainty and never as a GPS d
   assert.match(hint.detail, /turn/i);
 });
 
+test('a warmer/colder estimate is labelled with its moves and uncertainty', () => {
+  const probe = { find: { mode: 'probe-estimate', probeBearing: 90, probeUncertaintyDegrees: 64, probe: { last: 'counted', probes: 2 } },
+    proximity: measured.proximity, location: { valid: false }, guidance: undefined };
+  const state = describe(probe);
+  assert.equal(state.mode, 'probe');
+  assert.equal(state.probeBearing, 90);
+  assert.equal(state.probeUncertaintyDegrees, 64);
+  assert.match(state.title, /Warmer\/colder/);
+  assert.match(state.detail, /2 moves/);
+  assert.match(state.detail, /±64°/);
+  for (const patch of [{ probeBearing: NaN }, { probeBearing: 360 }, { probeUncertaintyDegrees: 101 }])
+    assert.notEqual(describe({ ...probe, find: { ...probe.find, ...patch } }).mode, 'probe', JSON.stringify(patch));
+  assert.notEqual(describe({ ...probe, proximity: { active: false } }).mode, 'probe');
+  const hint = describe({ ...measured, find: { mode: 'distance', probe: { last: 'no-change', probes: 0 } }, location: { valid: false }, guidance: undefined });
+  assert.match(hint.detail, /did not change/);
+});
+
 test('demo guidance stays explicitly labelled as simulated', () => {
   assert.match(describe({ location: { ...fix, simulated: true } }).detail, /SIMULATED/);
 });
