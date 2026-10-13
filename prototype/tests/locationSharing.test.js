@@ -1,13 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createLocationSharing } = require('../utils/locationSharing');
+const { createLocationSharing, prefersPreciseLocation } = require('../utils/locationSharing');
 
 function setup(extra = {}) {
   const requests = [], sent = [], errors = [], notices = [];
   let watch, tick, resume, cleared = 0;
   const geo = {
     getCurrentPosition(ok, fail, options) { requests.push({ ok, fail, options }); },
-    watchPosition(ok, fail) { watch = { ok, fail }; return 7; },
+    watchPosition(ok, fail, options) { watch = { ok, fail, options }; return 7; },
     clearWatch(id) { assert.equal(id, 7); cleared++; },
   };
   const document = { visibilityState: 'visible', addEventListener(_, fn) { resume = fn; }, removeEventListener() { resume = null; } };
@@ -18,6 +18,13 @@ function setup(extra = {}) {
 }
 const position = timestamp => ({ coords: { latitude: -27.47, longitude: 153.03, accuracy: 10 }, timestamp });
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test('phone accuracy preference distinguishes Chrome laptops from phones without fabricating GPS capability', () => {
+  assert.equal(prefersPreciseLocation({ userAgentData: { mobile: false }, userAgent: 'Chrome Macintosh' }), false);
+  assert.equal(prefersPreciseLocation({ userAgentData: { mobile: true } }), true);
+  assert.equal(prefersPreciseLocation({ userAgent: 'Mozilla Android Mobile' }), true);
+  assert.equal(prefersPreciseLocation({ userAgent: 'Mozilla Windows Chrome' }), false);
+});
 
 test('stationary sharing obtains genuinely new fixes every 20 seconds instead of replaying cached coordinates', async () => {
   const t = setup(); t.session.start(true);
@@ -40,6 +47,19 @@ test('high-accuracy timeout tries the laptop provider without claiming greater a
   assert.equal(t.sent[0].coords.accuracy, 1500);
   assert.equal(t.notices.length, 1);
   assert.equal(t.errors.length, 0);
+});
+
+test('desktop sharing requests the standard provider first without repeatedly waiting for a precise provider', () => {
+  const t = setup({ preferHighAccuracy: false }); t.session.start(true);
+  assert.equal(t.requests[0].options.enableHighAccuracy, false);
+  assert.equal(t.watch().options.enableHighAccuracy, false);
+  assert.equal(t.requests[0].options.maximumAge, 0);
+  t.requests[0].fail({ code: 3 });
+  assert.equal(t.requests.length, 1);
+  assert.match(t.errors[0].message, /timed out/);
+  t.tick();
+  assert.equal(t.requests[1].options.enableHighAccuracy, false);
+  t.session.stop();
 });
 
 test('permission denial stops all updates and returns actionable guidance without fallback', () => {

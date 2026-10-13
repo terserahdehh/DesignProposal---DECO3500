@@ -8,7 +8,7 @@ import { createPhoneBluetooth } from '../utils/phoneBluetooth';
 import { describeBandStatus, initialTransportMode } from '../utils/bandStatus';
 import DirectionRing from '../components/DirectionRing';
 import { directionGlow } from '../utils/directionGlow';
-import { createLocationSharing } from '../utils/locationSharing';
+import { createLocationSharing, prefersPreciseLocation } from '../utils/locationSharing';
 
 const NAMES = { nayaka: 'Nayaka', syifa: 'Syifa' };
 const COLOURS = { nayaka: THEME.purple, syifa: THEME.yellow };
@@ -270,6 +270,7 @@ export default function PhoneScreen() {
     setLocationNotice({ kind: 'info', text: 'Allow browser and OS location access. Requesting a fresh location from this device…' });
     locationSharing.current = createLocationSharing({
       geolocation, document: typeof document === 'undefined' ? undefined : document,
+      preferHighAccuracy: prefersPreciseLocation(),
       onPosition: position => sendLocation(position, session),
       onNotice: text => { if (session === locationSession.current && mounted.current) setLocationNotice({ kind: 'info', text }); },
       onError: error => {
@@ -333,6 +334,7 @@ export default function PhoneScreen() {
             {location && <View style={styles.locationBox}><Text style={styles.locationText}>{location.lat.toFixed(5)}, {location.lon.toFixed(5)}</Text><Text testID="location-freshness" style={styles.tinyNote}>Device fix · accuracy ±{Math.round(location.accuracy)} m · {now - location.timestamp >= 60000 ? 'EXPIRED — waiting for a new device fix' : `${Math.max(0, Math.floor((now - location.timestamp) / 1000))} s old`} · obtained {new Date(location.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></View>}
             {locationNotice && <Text testID="location-notice" accessibilityLiveRegion="polite" style={[styles.notice, locationNotice.kind === 'error' && styles.error, locationNotice.kind === 'success' && styles.success]}>{locationNotice.text}</Text>}
             <Text style={styles.tinyNote}>Location requires HTTPS or localhost and separate Chrome/OS permission—even when Bluetooth is connected. Laptop locations may be coarse or identical; use each wearer’s own Android phone outdoors for moving-person guidance.</Text>
+            <Text style={styles.tinyNote}>{prefersPreciseLocation() ? 'Phone mode requests high accuracy, with standard-provider fallback.' : 'Laptop mode uses the standard location provider first to avoid repeated precise-location timeouts.'} Reported accuracy is never altered.</Text>
             <Text style={styles.tinyNote}>Keep this page visible and the device awake. Automatic mode requests fresh fixes every 20 seconds, including while stationary, and retries when you return to the page. Browsers can suspend Bluetooth/location in the background; fixes expire after 60 seconds.</Text>
             <Text style={styles.tinyNote}>Switching wearer or connection stops browser updates. The previous band keeps its last fix until it expires; use Stop sharing location to request clearing.</Text>
           </View>

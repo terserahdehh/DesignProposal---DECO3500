@@ -5,6 +5,7 @@ function createLocationSharing(options) {
   const page = options.document;
   const every = options.setInterval || globalThis.setInterval;
   const cancel = options.clearInterval || globalThis.clearInterval;
+  const preferHighAccuracy = options.preferHighAccuracy !== false;
   let active = false, continuous = false, generation = 0;
   let watchId = null, timer = null, request = null, queued = null;
   let sending = false, sendingKey = null, lastKey = null;
@@ -47,7 +48,7 @@ function createLocationSharing(options) {
       }
     } finally { sending = false; }
   }
-  function acquire(highAccuracy = true) {
+  function acquire(highAccuracy = preferHighAccuracy) {
     if (!active || request) return;
     const token = generation, ticket = {};
     request = ticket;
@@ -61,7 +62,7 @@ function createLocationSharing(options) {
         acquire(false);
       } else fail(error, token);
     };
-    try { geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: highAccuracy, maximumAge: 0, timeout: highAccuracy ? 20000 : 30000 }); }
+    try { geolocation.getCurrentPosition(success, failure, { enableHighAccuracy: highAccuracy, maximumAge: 0, timeout: 20000 }); }
     catch (error) { request = null; fail(error, token); }
   }
   function resume() { if (page?.visibilityState === 'visible') acquire(); }
@@ -75,7 +76,7 @@ function createLocationSharing(options) {
           const id = geolocation.watchPosition(p => deliver(p, token), error => {
             if (error.code === 1) fail(error, token);
             else if (active && token === generation) acquire();
-          }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+          }, { enableHighAccuracy: preferHighAccuracy, maximumAge: 0, timeout: 20000 });
           if (active && token === generation) watchId = id;
           else geolocation.clearWatch(id);
           if (active) { timer = every(acquire, 20000); page?.addEventListener('visibilitychange', resume); }
@@ -86,4 +87,7 @@ function createLocationSharing(options) {
     stop,
   };
 }
-module.exports = { createLocationSharing };
+function prefersPreciseLocation(device = globalThis.navigator) {
+  return device?.userAgentData?.mobile ?? /Android|Mobi/i.test(device?.userAgent || '');
+}
+module.exports = { createLocationSharing, prefersPreciseLocation };

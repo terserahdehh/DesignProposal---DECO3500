@@ -90,11 +90,13 @@ test('stationary laptop sharing uploads fresh fixes past 60 seconds and stops al
   expect(await page.evaluate(() => window.__band.commands.filter(c => c.cmd === 'location').length)).toBe(4);
 });
 
-test('laptop high-accuracy failure falls back honestly and denied permission exposes a usable retry', async ({ page }) => {
+test('laptop standard-provider timeout and denied permission expose usable retries without claiming precise accuracy', async ({ page }) => {
   await installLocationProvider(page); await connect(page);
   await page.getByTestId('share-location').click();
+  expect(await page.evaluate(() => window.__geo.requests[0].options.enableHighAccuracy)).toBe(false);
   await page.evaluate(() => window.__geo.failure(0, 3));
-  await expect(page.getByTestId('location-notice')).toContainText('standard location provider');
+  await expect(page.getByTestId('location-notice')).toContainText('timed out');
+  await page.getByTestId('share-location').click();
   expect(await page.evaluate(() => window.__geo.requests[1].options.enableHighAccuracy)).toBe(false);
   await page.evaluate(() => window.__geo.success(1, 1500));
   await expect(page.getByTestId('location-notice')).toContainText('accuracy ±1500 m');
@@ -106,6 +108,18 @@ test('laptop high-accuracy failure falls back honestly and denied permission exp
   await page.getByTestId('watch-location').click();
   await page.evaluate(() => window.__geo.success(3));
   await expect(page.getByTestId('location-notice')).toContainText('acknowledged this device');
+});
+
+test('phone mode still requests high accuracy and falls back with the provider’s actual accuracy', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgentData', { configurable: true, value: { mobile: true } }));
+  await installLocationProvider(page); await connect(page);
+  await page.getByTestId('share-location').click();
+  expect(await page.evaluate(() => window.__geo.requests[0].options.enableHighAccuracy)).toBe(true);
+  await page.evaluate(() => window.__geo.failure(0, 3));
+  await expect(page.getByTestId('location-notice')).toContainText('standard location provider');
+  expect(await page.evaluate(() => window.__geo.requests[1].options.enableHighAccuracy)).toBe(false);
+  await page.evaluate(() => window.__geo.success(1, 1500));
+  await expect(page.getByTestId('location-notice')).toContainText('accuracy ±1500 m');
 });
 
 test('stopping sharing clears the band and late location callbacks cannot restart it', async ({ page }) => {
