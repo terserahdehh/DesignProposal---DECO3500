@@ -11,11 +11,11 @@ const WALK_HINTS = {
 };
 
 const PROBE_HINTS = {
-  none: 'To find the direction, aim the top of the band, move it forward and stop for 2 seconds.',
-  'no-change': 'That move did not change the distance enough: aim somewhere else and try again.',
-  turned: 'The band turned while moving: keep the same aim while you move it.',
-  'not-enough-readings': 'Stop for 2 seconds before and after each move.',
-  interrupted: 'Stop for 2 seconds before and after each move.',
+  none: 'Move the band around: when a move brings it closer, the arrow points that way; when it gets farther, the arrow points away.',
+  'no-change': 'That move did not change the distance enough: move a bit further.',
+  turned: 'The band spun around while moving, so that move had no direction.',
+  'not-enough-readings': 'Rest the band for a moment between moves so the distance can settle.',
+  interrupted: 'Rest the band for a moment between moves so the distance can settle.',
 };
 
 function initialTransportMode(location) {

@@ -147,22 +147,14 @@ const char *walkHint(){
 const char *probePhaseName(ProbePhase phase){
   switch(phase){case ProbePhase::Ready:return "ready";case ProbePhase::Moving:return "moving";case ProbePhase::Measuring:return "measuring";default:return "waiting";}
 }
-// Tells the wearer when to move and when to hold still, then the result.
+// Short status only: the arrow comes from ordinary moves, no aiming step.
 const char *probeHint(){
   if(!imuReady)return "No motion sensor";
-  switch(prober.phase()){
-    case ProbePhase::Waiting:return "Hold still...";
-    case ProbePhase::Moving:return "Moving... then STOP";
-    case ProbePhase::Measuring:return "Measuring: hold still";
-    default:break;
-  }
+  if(prober.phase()==ProbePhase::Moving||prober.phase()==ProbePhase::Measuring)return "Measuring...";
   switch(prober.lastProbe()){
-    case ProbeResult::Counted:
-      if(!prober.estimate(millis(),walker.headingDegrees()).valid)return prober.lastChange()<0?"CLOSER. Now aim elsewhere":"FARTHER. Now aim elsewhere";
-      return prober.lastChange()<0?"CLOSER! Aim + move again":"FARTHER. Aim + move again";
-    case ProbeResult::NoChange:return "No change: aim elsewhere";
-    case ProbeResult::Turned:return "Turned: keep aim, retry";
-    default:return "READY: aim, move forward";
+    case ProbeResult::Counted:return prober.lastChange()<0?"CLOSER this way":"FARTHER that way";
+    case ProbeResult::NoChange:return "No change: move more";
+    default:return "Move around to find";
   }
 }
 

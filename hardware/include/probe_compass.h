@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <stdint.h>
+#include <utility>
 
 // Warmer/colder compass: aim the top of the band, move it forward and stop.
 // The measured distance before and after says whether that direction leads
@@ -11,21 +12,23 @@ enum class ProbeResult : uint8_t { None, Counted, NoChange, Turned, NotEnoughRea
 // What the wearer should do now: wait, move, or hold still while measuring.
 enum class ProbePhase : uint8_t { Waiting, Ready, Moving, Measuring };
 
-// Measured 13 Oct 2026 with both bands lying still on a desk: a before/after
-// change reached 0.14-0.25 m one time in ten (people nearby alter the radio
-// path), so smaller changes are not evidence of a direction.
-constexpr double PROBE_MIN_CHANGE_METRES = 0.3;
-constexpr double PROBE_MAX_TURN_DEGREES = 45;
-constexpr int PROBE_BEFORE_READINGS = 2;
-constexpr int PROBE_AFTER_READINGS = 3;
+// Measured 13 Oct 2026 with both bands lying still on a desk: the median of
+// 5 readings before vs 5 after changed by under 0.10 m (yellow) and 0.18 m
+// (purple) 95% of the time; people nearby alter the radio path.
+constexpr double PROBE_MIN_CHANGE_METRES = 0.15;
+// Heading samples while moving must roughly agree (|mean vector| >= this,
+// about +/-45 degrees of spread) for the move to have a direction.
+constexpr double PROBE_MIN_AIM_AGREEMENT = 0.7;
+constexpr int PROBE_BEFORE_READINGS = 3;  // at least; up to PROBE_AFTER_READINGS
+constexpr int PROBE_AFTER_READINGS = 5;
 constexpr uint32_t PROBE_MIN_MOVE_MS = 150;
-constexpr uint32_t PROBE_MAX_MOVE_MS = 6000;
+constexpr uint32_t PROBE_MAX_MOVE_MS = 15000;  // including short pauses
 constexpr uint32_t PROBE_SETTLE_MS = 300;  // a session may straddle the stop
-constexpr uint32_t PROBE_LIFETIME_MS = 60000;
+// Moves never expire while Find is open; an older move counts half as much
+// every half-life, so newer moves win if the friend has moved.
+constexpr double PROBE_HALF_LIFE_MS = 45000;
 constexpr double PROBE_MAX_UNCERTAINTY_DEGREES = 100;
 constexpr int PROBE_MAX = 8;
-// One probe cannot tell left from right: an arrow needs probes aimed this far apart.
-constexpr double PROBE_MIN_AIM_SPREAD_DEGREES = 45;
 
 struct ProbeEstimate {
   bool valid;
@@ -41,34 +44,47 @@ class ProbeCompass {
   enum class Phase : uint8_t { Resting, Moving, Settling };
   struct Probe { double heading, change; uint32_t at; };
   Phase phase_ = Phase::Resting;
-  double still_[3] = {};
+  double still_[PROBE_AFTER_READINGS] = {};
   int stillCount_ = 0, afterCount_ = 0, count_ = 0;
   double after_[PROBE_AFTER_READINGS] = {};
-  double before_ = NAN, aim_ = 0, maxTurn_ = 0, lastChange_ = NAN;
+  double before_ = NAN, aimSin_ = 0, aimCos_ = 0, lastChange_ = NAN;
+  int aimSamples_ = 0;
   bool haveBefore_ = false;
   uint32_t moveStart_ = 0, moveEnd_ = 0;
   Probe probes_[PROBE_MAX] = {};
   ProbeResult last_ = ProbeResult::None;
 
-  static double mean(const double *values, int count) {
-    double sum = 0;
-    for (int i = 0; i < count; ++i) sum += values[i];
-    return sum / count;
+  // The median ignores the occasional single spike of a still band.
+  static double median(const double *values, int count) {
+    double sorted[PROBE_AFTER_READINGS];
+    for (int i = 0; i < count; ++i) sorted[i] = values[i];
+    for (int i = 1; i < count; ++i)
+      for (int j = i; j > 0 && sorted[j] < sorted[j - 1]; --j) std::swap(sorted[j], sorted[j - 1]);
+    return count % 2 ? sorted[count / 2] : 0.5 * (sorted[count / 2 - 1] + sorted[count / 2]);
   }
 
   void startMove(double heading, uint32_t now, const double *readings, int readingCount) {
     haveBefore_ = readingCount >= PROBE_BEFORE_READINGS;
-    before_ = haveBefore_ ? mean(readings, readingCount) : NAN;
-    aim_ = heading;
-    maxTurn_ = 0;
+    before_ = haveBefore_ ? median(readings, readingCount) : NAN;
+    aimSin_ = aimCos_ = 0;
+    aimSamples_ = 0;
+    addAim(heading);
     moveStart_ = now;
     phase_ = Phase::Moving;
   }
 
+  void addAim(double heading) {
+    const double radians = heading * 3.14159265358979323846 / 180;
+    aimSin_ += std::sin(radians);
+    aimCos_ += std::cos(radians);
+    ++aimSamples_;
+  }
+
   void finish(uint32_t now) {
-    const double after = mean(after_, afterCount_);
+    const double after = median(after_, afterCount_);
     lastChange_ = haveBefore_ ? after - before_ : NAN;
-    if (maxTurn_ > PROBE_MAX_TURN_DEGREES) last_ = ProbeResult::Turned;
+    const double aim = std::fmod(std::atan2(aimSin_, aimCos_) * 180 / 3.14159265358979323846 + 360, 360);
+    if (std::hypot(aimSin_, aimCos_) < PROBE_MIN_AIM_AGREEMENT * aimSamples_) last_ = ProbeResult::Turned;
     else if (!haveBefore_) last_ = ProbeResult::NotEnoughReadings;
     else if (std::abs(after - before_) < PROBE_MIN_CHANGE_METRES) last_ = ProbeResult::NoChange;
     else {
@@ -76,12 +92,12 @@ class ProbeCompass {
         for (int i = 1; i < PROBE_MAX; ++i) probes_[i - 1] = probes_[i];
         --count_;
       }
-      probes_[count_++] = {aim_, after - before_, now};
+      probes_[count_++] = {aim, after - before_, now};
       last_ = ProbeResult::Counted;
     }
     // The settled readings are the next probe's starting distance.
-    for (int i = 0; i < afterCount_ && i < 3; ++i) still_[i] = after_[i];
-    stillCount_ = afterCount_ < 3 ? afterCount_ : 3;
+    for (int i = 0; i < afterCount_; ++i) still_[i] = after_[i];
+    stillCount_ = afterCount_;
     afterCount_ = 0;
     phase_ = Phase::Resting;
   }
@@ -106,15 +122,12 @@ class ProbeCompass {
     if (moving) {
       if (phase_ == Phase::Resting) startMove(heading, now, still_, stillCount_);
       else if (phase_ == Phase::Settling) {
-        // Moved again before the distance settled: drop this probe.
-        last_ = ProbeResult::Interrupted;
-        double readings[PROBE_AFTER_READINGS];
-        for (int i = 0; i < afterCount_; ++i) readings[i] = after_[i];
-        const int readingCount = afterCount_;
+        // A short pause: the same move continues from its original start.
         afterCount_ = 0;
-        startMove(heading, now, readings, readingCount);
+        phase_ = Phase::Moving;
+        addAim(heading);
       } else {
-        maxTurn_ = std::fmax(maxTurn_, probeAngleGap(heading, aim_));
+        addAim(heading);
         if (uint32_t(now - moveStart_) > PROBE_MAX_MOVE_MS) {
           last_ = ProbeResult::Interrupted;
           haveBefore_ = false;
@@ -135,7 +148,10 @@ class ProbeCompass {
   void range(double metres, uint32_t now) {
     if (!std::isfinite(metres) || metres < 0) return;
     if (phase_ == Phase::Resting) {
-      if (stillCount_ == 3) { still_[0] = still_[1]; still_[1] = still_[2]; stillCount_ = 2; }
+      if (stillCount_ == PROBE_AFTER_READINGS) {
+        for (int i = 1; i < PROBE_AFTER_READINGS; ++i) still_[i - 1] = still_[i];
+        --stillCount_;
+      }
       still_[stillCount_++] = metres;
     } else if (phase_ == Phase::Settling && uint32_t(now - moveEnd_) >= PROBE_SETTLE_MS) {
       after_[afterCount_++] = metres;
@@ -147,26 +163,20 @@ class ProbeCompass {
     ProbeEstimate result{false, 0, NAN, NAN, 180};
     double vx = 0, vy = 0, total = 0;
     for (int i = 0; i < count_; ++i) {
-      if (uint32_t(now - probes_[i].at) >= PROBE_LIFETIME_MS) continue;
+      const double weight = std::pow(0.5, uint32_t(now - probes_[i].at) / PROBE_HALF_LIFE_MS);
       // Closer (negative change) votes toward the aim; farther votes away.
       const double radians = probes_[i].heading * 3.14159265358979323846 / 180;
-      vx -= probes_[i].change * std::sin(radians);
-      vy -= probes_[i].change * std::cos(radians);
-      total += std::abs(probes_[i].change);
+      vx -= weight * probes_[i].change * std::sin(radians);
+      vy -= weight * probes_[i].change * std::cos(radians);
+      total += weight * std::abs(probes_[i].change);
       ++result.probes;
     }
     if (!result.probes) return result;
-    double spread = 0;
-    for (int i = 0; i < count_; ++i)
-      for (int j = i + 1; j < count_; ++j)
-        if (uint32_t(now - probes_[i].at) < PROBE_LIFETIME_MS && uint32_t(now - probes_[j].at) < PROBE_LIFETIME_MS)
-          spread = std::fmax(spread, probeAngleGap(probes_[i].heading, probes_[j].heading));
-    if (spread < PROBE_MIN_AIM_SPREAD_DEGREES) return result;
     const double agreement = std::hypot(vx, vy) / total;
-    if (!(agreement > 0)) return result;
+    if (!(agreement > 1e-6)) return result;  // moves cancel out: no direction
     const double scatter = std::sqrt(-2 * std::log(std::fmin(1.0, agreement))) * 180 / 3.14159265358979323846;
-    result.uncertaintyDegrees = std::fmax(90 / std::sqrt(double(result.probes)), scatter);
-    if (result.uncertaintyDegrees > PROBE_MAX_UNCERTAINTY_DEGREES) return result;
+    // Kept visible even when moves disagree, with the uncertainty capped.
+    result.uncertaintyDegrees = std::fmin(PROBE_MAX_UNCERTAINTY_DEGREES, std::fmax(90 / std::sqrt(double(result.probes)), scatter));
     result.headingFrameBearing = std::fmod(std::atan2(vx, vy) * 180 / 3.14159265358979323846 + 360, 360);
     result.bearingFromTop = std::fmod(std::fmod(result.headingFrameBearing - currentHeading, 360.0) + 360.0, 360.0);
     result.valid = true;

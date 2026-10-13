@@ -30,23 +30,40 @@ struct Rig {
   // Aim the top at `aim`, push forward, stop; distance goes from -> to.
   void probe(double aim, double from, double to) {
     heading = aim;
-    still(2, from);
+    still(2.5, from);
     move(1);
-    still(2.5, to);
+    still(3.5, to);
   }
 };
 
-static void oneProbeIsCountedButShowsNoArrow() {
-  // Observed: a single accidental move while arranging the bands showed an
-  // arrow pointing down while the friend was to the left. One probe cannot
-  // tell left from down, so it never shows an arrow on its own.
+static void oneMoveIsEnoughForAnArrow() {
+  // The user's rule: move one way; closer means the arrow points there,
+  // farther means it points away from there.
+  Rig closer;
+  closer.probe(90, 1.0, 0.6);
+  auto toward = closer.compass.estimate(closer.now, closer.heading);
+  assert(toward.valid && toward.probes == 1);
+  assert(gap(toward.bearingFromTop, 0) < 1);         // straight ahead
+  assert(gap(toward.headingFrameBearing, 90) < 1);
+  assert(toward.uncertaintyDegrees >= 80);           // one move is a rough hint
+  Rig farther;
+  farther.probe(90, 0.6, 1.0);
+  auto away = farther.compass.estimate(farther.now, farther.heading);
+  assert(away.valid && gap(away.bearingFromTop, 180) < 1);  // behind the move
+}
+
+static void oneJumpyReadingDoesNotFlipAMove() {
+  // Still bands occasionally read a single spike (up to 1.3 m observed).
   Rig rig;
-  rig.probe(90, 2.0, 1.5);
-  auto one = rig.compass.estimate(rig.now, rig.heading);
-  assert(!one.valid && one.probes == 1 && rig.compass.lastProbe() == ProbeResult::Counted);
-  // A second probe along almost the same aim still cannot.
-  rig.probe(110, 1.5, 1.0);
-  assert(!rig.compass.estimate(rig.now, rig.heading).valid);
+  rig.heading = 90;
+  rig.still(2.5, 1.0);
+  rig.move(1);
+  rig.compass.motion(false, rig.heading, rig.now);
+  const double after[] = {0.6, 0.6, 2.3, 0.6, 0.6};
+  for (double metres : after) { rig.now += 610; rig.compass.motion(false, rig.heading, rig.now); rig.compass.range(metres, rig.now); }
+  auto estimate = rig.compass.estimate(rig.now, rig.heading);
+  assert(rig.compass.lastProbe() == ProbeResult::Counted && rig.compass.lastChange() < 0);
+  assert(estimate.valid && gap(estimate.bearingFromTop, 0) < 1);
 }
 
 static void movingCloserPullsTheArrowThere() {
@@ -76,11 +93,12 @@ static void probesInTwoDirectionsNarrowTheArrow() {
   rig.probe(90, 2.0, 1.5);  // right: closer
   auto estimate = rig.compass.estimate(rig.now, rig.heading);
   assert(estimate.valid && estimate.probes == 2);
-  assert(gap(estimate.headingFrameBearing, 45) < 1);
+  // Between the two aims; the newer move counts slightly more.
+  assert(gap(estimate.headingFrameBearing, 45) < 5);
   // Turning the band after probing turns the arrow back the other way.
-  assert(gap(estimate.bearingFromTop, 45 - 90) < 1);
+  assert(gap(estimate.bearingFromTop, estimate.headingFrameBearing - 90) < 1e-6);
   auto turned = rig.compass.estimate(rig.now, 0);
-  assert(gap(turned.bearingFromTop, 45) < 1);
+  assert(gap(turned.bearingFromTop, estimate.headingFrameBearing) < 1e-6);
   rig.probe(270, 1.5, 2.0);  // left: farther, agrees with up-right
   auto more = rig.compass.estimate(rig.now, rig.heading);
   assert(more.probes == 3 && more.uncertaintyDegrees < estimate.uncertaintyDegrees);
@@ -88,9 +106,9 @@ static void probesInTwoDirectionsNarrowTheArrow() {
 
 static void tooSmallAChangeIsIgnored() {
   Rig rig;
-  // Measured 13 Oct with both bands lying still: before/after changes reached
-  // 0.14 m (yellow) and 0.25 m (purple) one time in ten; a desk move is no larger.
-  rig.probe(90, 1.50, 1.25);
+  // Measured 13 Oct with both bands lying still: median-of-5 before/after
+  // changes stayed below 0.10 m (yellow) and 0.18 m (purple) 95% of the time.
+  rig.probe(90, 1.50, 1.40);
   auto estimate = rig.compass.estimate(rig.now, rig.heading);
   assert(!estimate.valid && estimate.probes == 0);
   assert(rig.compass.lastProbe() == ProbeResult::NoChange);
@@ -100,8 +118,8 @@ static void turningWhileMovingOrShortRestsDiscardTheProbe() {
   Rig turned;
   turned.heading = 0;
   turned.still(2, 0.6);
-  turned.move(1, 60);  // aim is ambiguous after a 60 degree turn
-  turned.still(2.5, 0.3);
+  turned.move(1, 180);  // pointing every way while moving: no direction
+  turned.still(3.5, 0.3);
   assert(!turned.compass.estimate(turned.now, turned.heading).valid);
   assert(turned.compass.lastProbe() == ProbeResult::Turned);
 
@@ -110,28 +128,60 @@ static void turningWhileMovingOrShortRestsDiscardTheProbe() {
   hurried.compass.range(0.6, hurried.now);  // only one reading before moving
   hurried.now += 300;
   hurried.move(1);
-  hurried.still(2.5, 0.3);
+  hurried.still(3.5, 0.3);
   assert(!hurried.compass.estimate(hurried.now, 0).valid);
   assert(hurried.compass.lastProbe() == ProbeResult::NotEnoughReadings);
-
-  Rig restless;
-  restless.still(2, 0.6);
-  restless.move(1);
-  restless.still(0.7, 0.3);  // moves again before the distance settles
-  restless.move(1);
-  restless.still(2.5, 0.3);
-  // The interrupted probe is dropped; the second one has a settled start.
-  auto estimate = restless.compass.estimate(restless.now, 0);
-  assert(estimate.probes <= 1);
 }
 
-static void oldProbesExpireAndResetClearsEverything() {
+static void shortPausesDoNotBreakAMove() {
+  // Observed: moving the yellow band from 0.88 m to touching with 0.5-0.7 s
+  // pauses was dropped as "interrupted" and the 0.9 m change was lost.
   Rig rig;
-  rig.probe(90, 2.0, 1.5);
-  rig.probe(0, 1.5, 1.9);
-  assert(rig.compass.estimate(rig.now, 90).valid);
-  assert(!rig.compass.estimate(rig.now + PROBE_LIFETIME_MS, 90).valid);
-  rig.probe(90, 2.0, 1.5);
+  rig.heading = 30;
+  rig.still(2.5, 0.9);
+  rig.move(0.8);
+  rig.still(0.6, 0.6);
+  rig.move(0.8);
+  rig.still(0.7, 0.3);
+  rig.move(0.5);
+  rig.still(3.5, 0.05);
+  auto estimate = rig.compass.estimate(rig.now, rig.heading);
+  assert(rig.compass.lastProbe() == ProbeResult::Counted && estimate.probes == 1);
+  assert(std::abs(rig.compass.lastChange() + 0.85) < 1e-9);
+  assert(estimate.valid && gap(estimate.bearingFromTop, 0) < 1);
+}
+
+static void theDirectionIsWhereTheTopPointedWhileMoving() {
+  // No aiming step: a gentle turn while moving averages out.
+  Rig rig;
+  rig.heading = 80;
+  rig.still(2.5, 1.0);
+  rig.move(1, 20);  // 80 -> 100 degrees
+  rig.still(3.5, 0.6);
+  auto estimate = rig.compass.estimate(rig.now, 90);
+  assert(estimate.valid && std::abs(estimate.headingFrameBearing - 90) < 1.5);
+  assert(gap(estimate.bearingFromTop, 0) < 1.5);
+}
+
+static void theArrowStaysAndNewerMovesTakeOver() {
+  // Observed: the arrow vanished exactly 60 s after its move while the user
+  // was still testing. The arrow now stays until Find closes; older moves
+  // just count for less, so a newer move wins if the friend has moved.
+  Rig rig;
+  rig.probe(90, 1.0, 0.6);
+  auto later = rig.compass.estimate(rig.now + 10 * 60000, 90);
+  assert(later.valid && gap(later.headingFrameBearing, 90) < 1);
+  rig.now += 5 * 60000;
+  rig.probe(270, 1.0, 0.6);  // friend is now the other way
+  auto now = rig.compass.estimate(rig.now, 270);
+  assert(now.valid && gap(now.headingFrameBearing, 270) < 1);
+  // Strongly disagreeing moves keep an arrow with a capped uncertainty.
+  Rig mixed;
+  mixed.probe(0, 1.0, 0.6);
+  mixed.probe(120, 1.0, 0.6);
+  mixed.probe(240, 1.0, 0.7);
+  auto rough = mixed.compass.estimate(mixed.now, 0);
+  assert(rough.valid && rough.uncertaintyDegrees <= PROBE_MAX_UNCERTAINTY_DEGREES);
   rig.compass.reset();
   assert(!rig.compass.estimate(rig.now, 90).valid && rig.compass.estimate(rig.now, 90).probes == 0);
 }
@@ -143,7 +193,7 @@ static void invalidDistancesAreIgnored() {
   rig.compass.range(NAN, rig.now);
   rig.compass.range(-1, rig.now);
   rig.move(1);
-  rig.still(2.5, 0.5);
+  rig.still(3.5, 0.5);
   assert(rig.compass.estimate(rig.now, 90).probes == 1);
 }
 
@@ -157,7 +207,7 @@ static void phasesGuideTheWearer() {
   assert(rig.compass.phase() == ProbePhase::Moving);
   rig.compass.motion(false, rig.heading, rig.now);
   assert(rig.compass.phase() == ProbePhase::Measuring);
-  rig.still(2.5, 0.5);
+  rig.still(3.5, 0.5);
   assert(rig.compass.phase() == ProbePhase::Ready);
   assert(rig.compass.lastProbe() == ProbeResult::Counted && rig.compass.lastChange() < 0);
   rig.probe(270, 0.5, 1.0);
@@ -166,13 +216,16 @@ static void phasesGuideTheWearer() {
 
 int main() {
   phasesGuideTheWearer();
-  oneProbeIsCountedButShowsNoArrow();
+  oneMoveIsEnoughForAnArrow();
+  oneJumpyReadingDoesNotFlipAMove();
   movingCloserPullsTheArrowThere();
   movingFartherPushesTheArrowAway();
   probesInTwoDirectionsNarrowTheArrow();
   tooSmallAChangeIsIgnored();
   turningWhileMovingOrShortRestsDiscardTheProbe();
-  oldProbesExpireAndResetClearsEverything();
+  shortPausesDoNotBreakAMove();
+  theDirectionIsWhereTheTopPointedWhileMoving();
+  theArrowStaysAndNewerMovesTakeOver();
   invalidDistancesAreIgnored();
   std::cout << "PASS: warmer/colder probes, two-direction narrowing, noise, turns, short rests, expiry and reset\n";
 }
