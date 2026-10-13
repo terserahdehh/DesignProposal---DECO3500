@@ -4,6 +4,74 @@ PulseBand is a context-aware smart concert wristband prototype for **DECO3500 â€
 
 The current prototype uses a code-built circular PulseBand body with a small rectangular display and four physical-style controls: Back, Next, OK and a red triangular SOS button below the display. Four colour indicators around the body represent group awareness. The supplied `watch.png` is retained as an earlier concept asset but is not used by the application.
 
+## Vercel deployment and access for friends
+
+The shared production website is https://pulseband-steel.vercel.app; physical-band setup is https://pulseband-steel.vercel.app/phone. The existing Vercel project is **`pulseband`**, under **`andhikanayakaaws-projects`**. Its [project dashboard](https://vercel.com/andhikanayakaaws-projects/pulseband) requires an authorized Vercel account. Deploy the **`prototype/`** directory, not the repository root: `npm run build` exports the website to `dist`, using `prototype/vercel.json` for the `/phone` routes.
+
+### First give each friend permission
+
+Checked on 13 October 2026: this project belongs to a **Hobby** team, and no Git repository is linked to it for automatic deployments. A GitHub push currently does **not** redeploy this project. The README, public website URL and project name are not deployment credentials.
+
+To let friends redeploy this **same** project using their own accounts, the owner must approve a **Pro** upgrade, then open team **Settings â†’ Members**, invite each friend's Vercel account email and assign the least-privileged available role that permits production deployment. Friends must accept the invitation and sign in with their own accounts. Read-only/Viewer access is insufficient. GitHub repository access is separate: grant it to friends who need to pull or push this repository, and connect their own Git provider in Vercel if commit-author checks require it. Never impersonate the owner's Git author identity.
+
+Invitations are supported on Pro/Enterprise, not Hobby. Do not upgrade, transfer ownership or incur paid seats without the owner's explicit approval. Until permissions are granted, friends can use the existing website without deployment access; they cannot redeploy this shared project. With repository access, a friend can separately deploy a copy under their own Vercel account, but that is a different project/URL and must not replace this shared URL without agreement. See [Vercel team invitations](https://vercel.com/docs/rbac/managing-team-members) and [deployment-access troubleshooting](https://vercel.com/docs/deployments/troubleshoot-project-collaboration).
+
+Do **not** put passwords, Vercel tokens or Deploy Hook URLs in this README, commits or shared prompts. Do not copy the owner's login/session to another laptop. A Deploy Hook URL itself grants deployment capability; this project is not currently Git-linked, so hooks are not configured. Any future hook must be kept private and requires deliberate setup, not a public "anyone can deploy" link.
+
+### Redeploy from an authorized friend's laptop
+
+Inspect `git status` first and preserve edits. On a clean `main` branch, pull without overwriting divergent work:
+
+```bash
+git pull --ff-only origin main
+cd prototype
+npm ci
+npm test
+npm run test:ui
+npm run build
+```
+
+The browser tests require installed Google Chrome. Resolve failures before production deployment. Run the following **from `prototype/`**, after accepting the team invitation. Sign in personally; no shared token is needed:
+
+```bash
+npx vercel login
+npx vercel whoami
+npx vercel link --yes --team andhikanayakaaws-projects --project pulseband
+npx vercel project inspect pulseband --scope andhikanayakaaws-projects
+npx vercel deploy --prod --scope andhikanayakaaws-projects
+```
+
+Confirm the link selects the **existing** `pulseband` project in the stated team. If access is denied or Vercel offers to create another project, stop and ask the owner to fix permissions. Do not work around authorization by removing Git metadata, sharing credentials or changing the commit author. Keep the generated `.vercel/` directory ignored.
+
+After deployment, inspect the URL printed by the CLI with `npx vercel inspect <deployment-url> --scope andhikanayakaaws-projects`. Wait for **Ready**, confirm the shared `pulseband-steel.vercel.app` alias points to that deployment, and check both `/` and `/phone` load successfully. If the alias needs repair, an authorized collaborator can use `npx vercel alias set <deployment-url> pulseband-steel.vercel.app --scope andhikanayakaaws-projects` after confirming the intended deployment is Ready. Reload connected Vercel tabs and reconnect/share location again; an existing tab may still run old JavaScript. Website deployment does not flash ESP32 firmware or change saved messages.
+
+### Prompt for GPT on another device
+
+```text
+Help me update and redeploy the shared PulseBand Vercel website.
+Repository: https://github.com/terserahdehh/DesignProposal---DECO3500.git
+Production: https://pulseband-steel.vercel.app/phone
+Existing Vercel team: andhikanayakaaws-projects
+Existing project: pulseband
+
+Inspect git status and preserve local edits. Clone into a new folder if missing;
+otherwise pull main with --ff-only only when safe. Read the README section
+"Vercel deployment and access for friends". Confirm my own Vercel account has
+accepted a team invitation and has production deployment permission. If it does
+not, stop and explain the access needed; do not create a replacement project,
+upgrade a plan, use the owner's credentials or bypass Git-author checks.
+
+From prototype/, install locked dependencies with npm ci, run npm test,
+npm run test:ui and npm run build. Resolve failures before deploying.
+Log in with my own account, link only the existing pulseband project under
+andhikanayakaaws-projects, inspect the link, and deploy --prod to that scope.
+Wait for Ready, verify the shared alias and both / and /phone routes. Report
+the source commit, tests, deployment URL and production URL. Never publish
+tokens, hook URLs or local .vercel files. Do not reflash watches, regenerate
+pairing keys or overwrite saved band messages. For Syifa's USB setup, follow
+hardware/CONNECT_SYIFA.md; Vercel needs no local Expo web server.
+```
+
 ## Physical ESP32 bands and phone setup
 
 Use [the deployed physical-band setup page](https://pulseband-steel.vercel.app/phone) for actual ESP32 presets, incoming messages and phone location. Vercel HTTPS supports the same Direct Bluetooth workflow as localhost in compatible browsers. Hosted pages initially select Direct Bluetooth; select USB bridge explicitly when using the local companion service. The live band card displays the paired band's connection and approximate north-referenced guidance, and incoming custom messages open a browser popup. Hiding the browser popup leaves the watch popup available to dismiss on the watch.
