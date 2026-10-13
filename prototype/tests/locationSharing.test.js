@@ -92,6 +92,21 @@ test('a new position arriving during an upload is sent afterwards, with only the
   t.session.stop();
 });
 
+test('movement fixes are uploaded immediately without rounding coordinates or lowering accuracy', async () => {
+  const t = setup({ preferHighAccuracy: false }); t.session.start(true);
+  const first = position(100), moved = position(101);
+  first.coords.accuracy = moved.coords.accuracy = 40;
+  moved.coords.latitude += 0.0000001;
+  t.requests[0].ok(first); await flush();
+  t.watch().ok(moved); await flush();
+  assert.equal(t.requests.length, 1, 'movement does not wait for the periodic request');
+  assert.deepEqual(t.sent, [first, moved]);
+  assert.equal(t.sent[1].coords.latitude, moved.coords.latitude);
+  assert.equal(t.sent[1].coords.accuracy, 40);
+  assert.equal(t.sent[1].timestamp, 101);
+  t.session.stop();
+});
+
 test('returning to the page requests a new fix but does not overlap an outstanding GPS request', () => {
   const t = setup(); t.session.start(true); t.tick(); t.resume();
   assert.equal(t.requests.length, 1);

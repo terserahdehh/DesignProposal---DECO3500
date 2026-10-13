@@ -65,3 +65,12 @@ test('coarse laptop fixes explain overlapping accuracy and the need for independ
   assert.match(state.detail, /overlap/);
   assert.match(state.detail, /own phone/);
 });
+
+test('uncertain laptop separation is not presented as a measured physical distance', () => {
+  const state = describe({ guidance: { ...band.guidance, metres: 20, usable: false, accuracy: 54 } });
+  assert.equal(state.mode, 'uncertain');
+  assert.match(state.detail, /distance.*unknown/i);
+  assert.match(state.detail, /±54 m/);
+  assert.doesNotMatch(state.detail, /20 m|0 m/);
+  assert.match(state.detail, /centimetre/i);
+});

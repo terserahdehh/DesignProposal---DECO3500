@@ -327,7 +327,7 @@ export default function PhoneScreen() {
 
           <View style={styles.card}>
             <Text style={styles.cardLabel}>FIND YOUR FRIEND</Text><Text accessibilityRole="header" style={styles.cardTitle}>Share this device’s location.</Text>
-            <Text style={styles.note}>The bands have no GPS or compass. Share each wearer’s real phone location to their own band. The band shows distance and a bearing from north; use a phone compass to orient yourself.</Text>
+            <Text style={styles.note}>The bands have no GPS or compass. Share each wearer’s device location to their matching band. With USB, this is the laptop’s location: moving the ESP32 alone does not change it. The arrow is north-up, not relative to how you turn the watch.</Text>
             <View style={styles.actionRow}>{!watching && <><Button testID="share-location" primary disabled={!connected || locating || syncing} onPress={() => startSharing(false)}>{locating ? 'Getting location…' : 'Share location once'}</Button><Button testID="watch-location" disabled={!connected || locating || syncing} onPress={() => startSharing(true)}>Keep location updated</Button></>}{(watching || location) && <Button testID="stop-location" disabled={locating && !watching} onPress={stopSharing}>Stop sharing location</Button>}</View>
             {watching && <Text style={styles.liveLocation}>● Automatic location updates are active for {NAMES[owner]}.</Text>}
             {watching && <Button testID="retry-location" disabled={locating} onPress={() => locationSharing.current?.retry()}>Retry fresh location</Button>}
@@ -336,6 +336,7 @@ export default function PhoneScreen() {
             <Text style={styles.tinyNote}>Location requires HTTPS or localhost and separate Chrome/OS permission—even when Bluetooth is connected. Laptop locations may be coarse or identical; use each wearer’s own Android phone outdoors for moving-person guidance.</Text>
             <Text style={styles.tinyNote}>{prefersPreciseLocation() ? 'Phone mode requests high accuracy, with standard-provider fallback.' : 'Laptop mode uses the standard location provider first to avoid repeated precise-location timeouts.'} Reported accuracy is never altered.</Text>
             <Text style={styles.tinyNote}>Keep this page visible and the device awake. Automatic mode requests fresh fixes every 20 seconds, including while stationary, and retries when you return to the page. Browsers can suspend Bluetooth/location in the background; fixes expire after 60 seconds.</Text>
+            <Text style={styles.tinyNote}>Changed location readings are sent immediately and update the centered arrow and quarter-light when both fixes support a direction. USB does not increase location precision: centimetre-scale laptop movement may not produce a changed reading.</Text>
             <Text style={styles.tinyNote}>Switching wearer or connection stops browser updates. The previous band keeps its last fix until it expires; use Stop sharing location to request clearing.</Text>
           </View>
           <View testID="live-band-status" style={styles.card}>

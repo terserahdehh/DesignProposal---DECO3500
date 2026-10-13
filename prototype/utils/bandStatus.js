@@ -22,7 +22,7 @@ function describeBandStatus(band, owner, connected, observedAt, now = Date.now()
   const guidance = band.guidance;
   if (guidance?.available !== true || !Number.isFinite(guidance.metres) || guidance.metres < 0) return state;
   if (guidance.usable !== true) return { ...state, mode: 'uncertain', title: 'Location is too uncertain for a direction.',
-    detail: `Approximate separation: ${Math.round(guidance.metres)} m.${Number.isFinite(guidance.accuracy) ? ` Combined reported accuracy: ±${Math.round(guidance.accuracy)} m.` : ''} The accuracy ranges overlap or the bearing is ambiguous, so no safe arrow is shown. Each wearer should use their own phone outdoors; laptop locations may be coarse or identical.` };
+    detail: `Actual distance is unknown.${Number.isFinite(guidance.accuracy) ? ` Combined reported accuracy: ±${Math.round(guidance.accuracy)} m.` : ''} The accuracy ranges overlap or the bearing is ambiguous, so no safe arrow is shown. These devices could be side by side; laptop location cannot measure centimetre movements. Each wearer can use their own phone outdoors for a better fix.` };
   if (!Number.isFinite(guidance.bearing) || guidance.bearing < 0 || guidance.bearing >= 360 ||
       !Number.isFinite(guidance.bearingUncertaintyDegrees) || guidance.bearingUncertaintyDegrees < 0 || guidance.bearingUncertaintyDegrees > 90 ||
       guidance.northReferenced !== true) return state;

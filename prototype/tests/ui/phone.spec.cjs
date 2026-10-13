@@ -227,8 +227,12 @@ test('cancelling a band import preserves an unfinished draft and local messages'
 
 test('uncertain, offline and old telemetry remove browser direction claims', async ({ page }) => {
   await connect(page);
-  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, usable: false } }));
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, usable: false, metres: 20, accuracy: 54 } }));
   await expect(page.getByTestId('direction-title')).toContainText('too uncertain');
+  await expect(page.getByTestId('direction-detail')).toContainText('distance is unknown');
+  await expect(page.getByTestId('direction-detail')).toContainText('±54 m');
+  await expect(page.getByTestId('direction-detail')).not.toContainText('20 m');
+  await expect(page.getByTestId('direction-ring')).toBeHidden();
   await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', peerConnected: false }));
   await expect(page.getByTestId('direction-title')).toContainText('Waiting for fresh locations');
   await expect(page.getByTestId('direction-title')).toContainText('Connect your band', { timeout: 12000 });
