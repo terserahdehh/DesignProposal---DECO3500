@@ -54,6 +54,24 @@ Hosted `/phone` defaults to **Direct Bluetooth**. Its **Live physical band** car
 
 For a supported phone, serve the web app over HTTPS, open `/phone` in Chrome on Android and choose **Direct Bluetooth**. Select your wearer, press **Connect**, and choose `PulseBand-Nayaka` or `PulseBand-Syifa`. The page checks the firmware identity before enabling sync. This mode uses Bluetooth to configure a band; messages between bands still use ESP-NOW. iPhone browsers do not support this Web Bluetooth flow. A laptop localhost page also supports Bluetooth when browser and OS permissions allow it. The existing Vercel configuration includes the `/phone` route fallback; edits must be deployed to your existing host before its public `/phone` URL changes.
 
+## Find a friend: what the bands actually measure
+
+The firmware reads its own hardware at start-up and reports it in `status.sensors`: the I²C bus holds only the CST816S touch controller (`0x15`) and a QMI8658 accelerometer/gyroscope (`0x6B`, WHO_AM_I `0x05`). There is **no GPS, magnetometer, direction-finding radio, buzzer or speaker** (`status.audio.output: "none"`).
+
+| Cue | Source | Measured on these two bands (13 Oct 2026, desk, flat, line of sight) |
+| --- | --- | --- |
+| Distance | Wi-Fi Fine Timing Measurement (802.11mc round-trip time) between the bands | About ±0.15 m when nearly touching; up to 1.4 m wrong at other desk positions (multipath), ~+1.5 m with a laptop in between. New reading every 615 ms (median); 99% of sessions succeed. |
+| Light and pulse | Distance above (or usable phone GPS) | Full brightness and 150 ms pulses at ≤0.2 m, dimmest and 2 s pulses at 20 m, no pulses beyond. Screen starts changing ~0.7 s after a move and settles in ~1.3–2 s. |
+| Direction | Usable phone GPS (north-up), or a walk-to-find estimate | No direction exists at desk scale. Walk-to-find is tested in simulation; on hardware only its turn direction (clockwise reads positive) and step counting were checked: 9 and 15 counted for two 10-step marches on the spot, the extra counts from lifting and setting the band down. |
+
+**Distance-only (default).** Find Direction shows the measured distance with its ± uncertainty and a uniform full ring that points nowhere. The ring brightens and *pulses* at the beep rate: these bands have no buzzer, so the pulse is the visible beep. `/phone` can play the same timing through the laptop speaker, labelled **LAPTOP PREVIEW**. Building with `-DPULSE_BUZZER_PIN=<gpio>` drives a piezo buzzer (through a transistor) on a free GPIO. Centimetre movement cannot be detected: one round-trip timestamp step is 1.56 ns (≈23 cm one way) and the timestamps also jump by a whole 12.5 ns clock period. Wi-Fi timing gives *how far*, never *which way*.
+
+**Walk-to-find (estimate).** With Find Direction open, the band counts your steps (accelerometer) and turns (gyroscope) and records the measured distance along the way. After a few metres *and a turn* it locates a friend who stays still by trilateration and shows an arrow and quarter light labelled **WALK ESTIMATE ±N°**, relative to the top of your band. It refuses a straight walk (mirror ambiguity), a walk shorter than 1.5 m, a friend under 2 m away, ranges that break the triangle inequality, or residuals that trend (the friend moved). It assumes the top of the band points where you walk and 0.7 m steps. Marching on the spot once produced a false arrow for 25 s; that recorded window is now a regression test and replays with no arrow. Reopening Find Direction restarts the walk.
+
+**Labelled demo.** In Find Direction, `<` / `>` show a quarter light and arrow at a direction you choose, labelled **DEMO - NOT MEASURED**; brightness and pulses still follow the measured distance. It never follows the other band. `OK` leaves Find Direction and switches it off.
+
+A real arrow that follows the other band in any situation needs extra hardware on each band: an ultra-wideband module with angle of arrival (e.g. a two-antenna PDoA kit such as Qorvo QM33120W, or NXP SR150-based modules such as Murata Type 2BP; ~10 cm ranging, ±5–10° angle) and a magnetometer (e.g. LIS2MDL or BMM150 on the same I²C bus) for a wrist-relative arrow. Bluetooth 5.1 direction finding (antenna array with CTE support) is an alternative; the ESP32-S3 radio does not support it.
+
 ## Real location and direction
 
 These boards have an accelerometer/gyroscope, but **no GPS or magnetometer**. Each wearer must share their own phone's real location to their own band using `/phone`. Connect both phones separately, then use **Keep location updated** and leave the pages open. A position from a laptop represents that laptop, not a separately moving wearer.
@@ -64,7 +82,7 @@ The bands exchange coordinates and calculate approximate distance and bearing me
 
 Direction quality uses the sum of both phones' reported accuracy radii. Guidance is suppressed when that sum reaches the measured separation, when positions are within one metre, or when inputs or antipodal geometry make the direction ambiguous. A usable direction includes an angular uncertainty estimate: at nearby distances, 100 m separation with 20 m combined reported accuracy gives approximately **±11.5°**. This estimate uses spherical geometry and does not account for wrist orientation or independently verify the phones' locations. Browser accuracy represents a reported 95% position radius; combining the radii does not establish a calibrated 95% confidence interval for the bearing. See the [W3C Geolocation specification](https://www.w3.org/TR/geolocation/#latitude-longitude-and-accuracy-attributes). This quality check cannot provide guaranteed indoor or wrist-relative tracking.
 
-Half-metre or one-metre movement cannot be reliably detected with these boards and the observed laptop fixes (about ±14–40 m). Moving an ESP32 while its location-source laptop stays still does not update its position. A usable arrow and the 90° quarter light follow the same north-referenced bearing; the light becomes brighter as a usable distance decreases from 200 m to 5 m, with brightness capped below 5 m. Neither visual is evidence of sub-metre tracking. Such tracking requires additional positioning hardware; wrist-relative arrows also require an absolute heading source.
+Half-metre or one-metre movement cannot be detected from the observed laptop fixes (about ±14–40 m). Moving an ESP32 while its location-source laptop stays still does not update its position. A usable arrow and the 90° quarter light follow the same north-referenced bearing. When the bands' own Wi-Fi distance is shorter than the combined GPS uncertainty, the GPS bearing is contradicted and hidden. Brightness and pulses use the measured Wi-Fi distance when available, otherwise the GPS distance, on the same curve described above.
 
 Firmware source now uses one visibility gate for the arrow and quarter light, and places branding/footer text clear of the light around the round display. A GitHub/Vercel website update does not install those firmware changes on the physical bands. Building firmware alone does not flash it. Keep the existing pairing key and saved presets when arranging any separately authorized firmware update.
 
@@ -82,7 +100,9 @@ hardware/.venv/bin/pio run --project-dir hardware -e nayaka -t upload
 hardware/.venv/bin/pio run --project-dir hardware -e syifa -t upload
 ```
 
-`configure_pair.py` creates the ignored `hardware/include/pairing_keys.h` once. Both bands must be built with the same file. Keep it locally; generating a different key requires reflashing both bands. These builds are tied to the verified device MAC addresses in `src/main.cpp`. Check the connected ports and MACs before reflashing replacement hardware. The default macOS ports in `platformio.ini` may need updating on another computer.
+`configure_pair.py` creates the ignored `hardware/include/pairing_keys.h` once. Both bands must be built with the same file. Keep it locally; generating a different key requires reflashing both bands.
+
+**Key changed on 13 October 2026.** The laptop that installed Wi-Fi ranging did not have the earlier key file, so it generated a new key and flashed both bands together; they pair with each other normally. An older `pairing_keys.h` on another laptop no longer matches. Copy the new file privately from that laptop (never commit or share it publicly) before building firmware elsewhere, or reflash both bands from one laptop. Full pre-update images of both bands (with the earlier key) are kept in that laptop's ignored `hardware/backups/2026-10-13-*-before-ranging.*`. These builds are tied to the verified device MAC addresses in `src/main.cpp`. Check the connected ports and MACs before reflashing replacement hardware. The default macOS ports in `platformio.ini` may need updating on another computer.
 
 `partitions.csv` preserves the verified factory partition layout. The configuration pins TFT_eSPI and Arduino dependencies and explicitly selects FSPI to avoid the ESP32-S3 raw-register selection bug in TFT_eSPI 2.5.43. Upload speed is 115200 because faster baud rates were unreliable with this laptop's USB serial connection.
 
@@ -98,6 +118,8 @@ hardware/.venv/bin/esptool --port /dev/cu.usbmodem5B910342271 --baud 115200 writ
 ```
 
 ## Validation and protocol
+
+The 13 October Find Friend update (Wi-Fi ranging, proximity pulse, demo and walk-to-find) is described with its physical evidence in [AUDIT-2026-10-13-FIND-FRIEND.md](AUDIT-2026-10-13-FIND-FRIEND.md). Run every native firmware-logic suite with `hardware/tests/run_native.sh` after `hardware/.venv/bin/pio pkg install --project-dir hardware -e nayaka`. The earlier validation history follows.
 
 The October 13 direction update passed 113 Node tests, 15 isolated browser checks (plus three affected checks after the final arrow geometry change), 31 Python bridge tests, five native C++ direction/location/layout suites, and both Nayaka/Syifa firmware builds. Browser and serial doubles validate rendering, protocol behavior and invalid-data handling; they do not establish real tracking. The native layout suite reads the installed TFT_eSPI font bitmap and checks text against the rotating arc, SOS triangle and indicators. Live read-only USB checks verified both owners/MACs, peer heartbeats, saved presets and current 240×240 frames. Both live frames showed unavailable location, so reliable physical direction and sub-metre movement were not demonstrated. Firmware was built without upload.
 

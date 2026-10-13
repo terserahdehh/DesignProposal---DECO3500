@@ -22,7 +22,17 @@ curl http://localhost:8787/api/bands/syifa/frame
 
 Successful captures return `ok`, `owner`, `width`, `height`, `view`, `encoding` and `pixels`. The firmware uses `encoding: "rgb565-rle"`: each group of eight hexadecimal characters contains a four-character repeat count followed by a four-character RGB565 colour. Expand the runs in order, then arrange the pixels into rows using `width`. Current bands return 240 × 240 pixels. The response has `Cache-Control: no-store`; it is captured when requested rather than read from an image cache.
 
-An absent USB band returns HTTP 503, a rejected firmware capture returns 502, and a missing acknowledgement returns 504. Unknown owners/endpoints return 404. Disallowed browser origins return 403 before a capture command is sent.
+An absent USB band returns HTTP 503, a rejected firmware capture returns 502, and a missing acknowledgement returns 504. Unknown owners/endpoints return 404. Disallowed browser origins return 403 before a capture command is sent. A capture streams about 50 KB at 115200 baud and pauses the firmware loop for a few seconds, so the Wi-Fi distance can briefly show as stale right after a capture.
+
+## Find Friend measurements
+
+Each status carries `range` (Wi-Fi round-trip distance: `valid`, `metres`, `uncertaintyMetres`, `state`, `ageMillis`, `rssi`), `proximity` (`active`, `source`, `brightness`, `beepIntervalMillis`) and `find` (`mode`: `direction`, `walk-estimate`, `demo-direction`, `distance`, `uncertain`, `unavailable` or `offline`; plus the `walk` progress). The band decides these; the bridge and `/phone` only display them. A full status that omits them clears the cached copies. Each snapshot also includes `statusReceivedAt`, the bridge's own receipt time in milliseconds, so a browser can tell a stale cached snapshot from a live band.
+
+```bash
+curl "http://localhost:8787/api/bands/nayaka/telemetry?after=0"
+```
+
+`GET /api/bands/{owner}/telemetry?after=N` returns the band's per-session ranging samples (`type: "range"`, about 1.6 per second, the last 600 kept), each with the raw and smoothed distance, RSSI, mode, pulse interval, walk state and the bridge `receivedAt`. These samples are kept apart from `/events`, so they cannot push out message pop-ups. For tuning step detection, the serial-only debug command `{"cmd":"imu_stream","on":true}` streams raw accelerometer/gyroscope lines (`M,micros,ax,ay,az,gx,gy,gz,steps`) at 112 Hz; it is off after every restart and needs the bridge closed.
 
 ## Bridge tests
 
@@ -30,4 +40,4 @@ An absent USB band returns HTTP 503, a rejected firmware capture returns 502, an
 hardware/.venv/bin/python -m unittest discover -s hardware/tests -v
 ```
 
-These tests use serial doubles and a loopback HTTP server. They cover origin restrictions, live frame routing and payloads, preserved state, disconnected devices and acknowledgement errors; they do not supply or validate real GPS fixes.
+These tests use serial doubles and a loopback HTTP server. They cover origin restrictions, live frame routing and payloads, preserved state, disconnected devices, acknowledgement errors, ranging telemetry and stale measurement removal; they do not supply or validate real GPS fixes or real radio ranging.
