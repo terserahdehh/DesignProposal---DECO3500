@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { directionGlow, arcPath } = require('../utils/directionGlow');
+const { directionGlow, arcPath, DIRECTION_ARROW_PATH } = require('../utils/directionGlow');
 
 test('the direction glow covers one quarter of the ring around the north bearing', () => {
   const glow = directionGlow(0, 100);
@@ -18,4 +18,17 @@ test('proximity brightness is monotonic and invalid distances show no glow', () 
   assert.equal(directionGlow(90, 200).brightness, 0.2);
   for (const value of [NaN, Infinity, -1]) assert.equal(directionGlow(90, value), null);
   assert.equal(directionGlow(NaN, 10), null);
+});
+
+test('large web arrow is centered in the compass and stays inside its quarter-ring at every rotation', () => {
+  assert.equal(DIRECTION_ARROW_PATH, 'M50 20 L70 80 L50 65 L30 80 Z');
+  const numbers = DIRECTION_ARROW_PATH.match(/\d+/g).map(Number);
+  const xs = [], ys = [];
+  for (let i = 0; i < numbers.length; i += 2) {
+    xs.push(numbers[i]); ys.push(numbers[i + 1]);
+    assert.ok(Math.hypot(numbers[i] - 50, numbers[i + 1] - 50) < 40);
+  }
+  assert.equal((Math.min(...xs) + Math.max(...xs)) / 2, 50);
+  assert.equal((Math.min(...ys) + Math.max(...ys)) / 2, 50);
+  assert.equal(Math.max(...ys) - Math.min(...ys), 60);
 });

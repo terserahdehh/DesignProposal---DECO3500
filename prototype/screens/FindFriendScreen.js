@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import base from './screenStyles';
+import { DIRECTION_ARROW_PATH } from '../utils/directionGlow';
 
 /**
  * Directional compass arrow pointing toward a friend.
@@ -16,10 +17,10 @@ function DirectionArrow({ friend, direction, distance, connected, scale }) {
   // Bearing the arrow should point: friend's fixed angle, offset by the
   // user's simulated facing direction so it rotates like a compass.
   const bearing = friend.angle + direction;
-  const size = 32 * scale;
+  const size = 68 * scale;
   return <View style={[styles.arrowWrap, { width: size, height: size, transform: [{ rotate: `${bearing}deg` }] }]}>
-    <Svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
-      <Path d="M16 2l6 24-6-6-6 6z" fill={friend.color} opacity={0.92} />
+    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden>
+      <Path d={DIRECTION_ARROW_PATH} fill={friend.color} opacity={0.92} />
     </Svg>
   </View>;
 }
@@ -36,13 +37,13 @@ export default function FindFriendScreen({ friend, hardwareStatus, distance, isT
     <Text style={[base.label, { fontSize: 17 * scale }]}>{friend.name.toUpperCase()}</Text>
     <View style={styles.trackingRow}>
       <DirectionArrow friend={friend} direction={direction} distance={distance} connected={connected} scale={scale} />
-      <Text style={[base.number, { fontSize: (distance === 0 && connected ? 29 : 38) * scale, lineHeight: 42 * scale }]}>{!connected ? '—' : distance <= 3 ? 'CLOSE' : distance <= 12 ? 'NEARBY' : 'FAR'}</Text>
+      <Text style={[base.number, { fontSize: (distance === 0 && connected ? 29 : 19) * scale, lineHeight: 25 * scale }]}>{!connected ? '—' : distance <= 3 ? 'CLOSE' : distance <= 12 ? 'NEARBY' : 'FAR'}</Text>
     </View>
-    <Text style={[base.secondary, { fontSize: 13 * scale }]}>{`SIM · ${status}`}</Text>
+    <Text style={[base.secondary, { fontSize: 11 * scale }]}>{`SIM · ${status}`}</Text>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  trackingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trackingRow: { alignItems: 'center', gap: 0 },
   arrowWrap: { alignItems: 'center', justifyContent: 'center' },
 });

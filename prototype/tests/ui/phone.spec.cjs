@@ -163,6 +163,13 @@ test('custom popups, repeated messages, dismissal and direction expiry work on m
   const firstPath = await arc.getAttribute('d');
   const firstBrightness = Number(await arc.getAttribute('opacity'));
   await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', guidance: { ...window.__band.band.guidance, bearing: 0, metres: 25 } }));
+  const arrow = page.getByTestId('direction-arrow');
+  await expect(arrow).toHaveAttribute('d', 'M50 20 L70 80 L50 65 L30 80 Z');
+  const arrowBox = await arrow.boundingBox();
+  const ringBox = await page.getByTestId('direction-ring').boundingBox();
+  expect(Math.abs(arrowBox.x + arrowBox.width / 2 - ringBox.x - ringBox.width / 2)).toBeLessThan(1);
+  expect(Math.abs(arrowBox.y + arrowBox.height / 2 - ringBox.y - ringBox.height / 2)).toBeLessThan(1);
+  expect(arrowBox.height).toBeGreaterThanOrEqual(119);
   await expect(arc).not.toHaveAttribute('d', firstPath);
   expect(Number(await arc.getAttribute('opacity'))).toBeGreaterThan(firstBrightness);
   const incoming = sequence => page.evaluate(sequence => window.__band.notify({ type: 'message', owner: 'nayaka', from: 'syifa', text: 'Meet beside the stage', sequence }), sequence);
