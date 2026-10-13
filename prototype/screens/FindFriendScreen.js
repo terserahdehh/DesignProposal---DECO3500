@@ -18,7 +18,7 @@ function DirectionArrow({ friend, direction, distance, connected, scale }) {
   // user's simulated facing direction so it rotates like a compass.
   const bearing = friend.angle + direction;
   const size = 68 * scale;
-  return <View style={[styles.arrowWrap, { width: size, height: size, transform: [{ rotate: `${bearing}deg` }] }]}>
+  return <View testID="sim-direction-arrow" style={[styles.arrowWrap, { width: size, height: size, transform: [{ rotate: `${bearing}deg` }] }]}>
     <Svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden>
       <Path d={DIRECTION_ARROW_PATH} fill={friend.color} opacity={0.92} />
     </Svg>

@@ -255,3 +255,22 @@ test('the original prototype still loads and exposes the physical setup link', a
   await expect(page.getByText('LIVE BAND SIMULATION', { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('large simulator direction arrow remains centered and inside the LCD on a small phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Nayaka', exact: true }).click();
+  for (let press = 0; press < 3; press++) await page.getByTestId('band-ok').click();
+  const arrow = page.getByTestId('sim-direction-arrow');
+  await expect(arrow).toBeVisible();
+  const screen = await page.getByTestId('band-screen').boundingBox();
+  const shape = await arrow.locator('path').boundingBox();
+  expect(Math.abs(shape.x + shape.width / 2 - screen.x - screen.width / 2)).toBeLessThan(4);
+  expect(shape.x).toBeGreaterThan(screen.x);
+  expect(shape.y).toBeGreaterThan(screen.y);
+  expect(shape.x + shape.width).toBeLessThan(screen.x + screen.width);
+  expect(shape.y + shape.height).toBeLessThan(screen.y + screen.height);
+  await expect(page.getByTestId('band-screen')).toContainText('SIM');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
