@@ -26,10 +26,10 @@ from bridge import BandBridge, OWNERS
 WIDTH = HEIGHT = 240
 PIXEL_COUNT = WIDTH * HEIGHT
 INK = 0x0863
+PAPER = 0xEF7C
 WIDE_TEXT = "W" * 40
 EXPECTED_MACS = {"nayaka": "8C:FD:49:9B:E7:40", "syifa": "8C:FD:49:9B:EE:84"}
-INDICATORS = {"nayaka": (48, 48, 0xA2BE, "purple"),
-              "syifa": (192, 192, 0xFEA2, "yellow")}
+DOT_CENTRES = ((48, 48), (192, 48), (48, 192), (192, 192))
 
 
 class VerificationError(Exception):
@@ -75,22 +75,15 @@ def inspect_pixels(pixels, sender=None):
             outside += 1
             if len(samples) < 8:
                 samples.append({"x": x, "y": y, "rgb565": f"{colour:04x}"})
-    indicators = []
-    for owner, (cx, cy, colour, name) in INDICATORS.items():
-        count = sum(pixels[y * WIDTH + x] == colour
-                    for y in range(cy - 14, cy + 15)
-                    for x in range(cx - 14, cx + 15))
-        centre_matches = pixels[cy * WIDTH + cx] == colour
-        expected_active = sender == owner
-        indicators.append({"sender": owner, "colour": name, "rgb565": f"{colour:04x}",
-                           "centre": [cx, cy], "matchingPixelsIn29pxSquare": count,
-                           "centreMatches": centre_matches, "expectedActive": expected_active,
-                           "ok": (centre_matches and count >= 250) if expected_active
-                                 else (not centre_matches and count == 0)})
+    # The four dots were removed from every view, including unread messages.
+    corners = [{"centre": [cx, cy], "clear": all(
+        pixels[y * WIDTH + x] == PAPER
+        for y in range(cy - 1, cy + 2) for x in range(cx - 1, cx + 2))}
+        for cx, cy in DOT_CENTRES]
     return {"decodedPixels": len(pixels), "foregroundPixels": foreground,
             "outsideCirclePixels": outside, "outsideCircleSamples": samples,
             "roundBoundaryOk": outside == 0, "nonBlankWatchFrame": foreground >= 20000,
-            "indicators": indicators, "indicatorPixelsOk": all(item["ok"] for item in indicators)}
+            "cornerDots": corners, "cornerDotsAbsent": all(item["clear"] for item in corners)}
 
 
 def image_from_pixels(pixels):
@@ -118,7 +111,7 @@ class DisplayVerifier:
                       "physicalFingerTouchTested": False, "physicalLcdOpticsTested": False,
                       "positions": "explicitly simulated examples only, cleared afterward",
                       "realGpsOrWristDirectionTested": False, "textFitHumanReviewed": False,
-                      "mechanicalChecks": "57,600 pixels, round boundary and sender indicator colours",
+                      "mechanicalChecks": "57,600 pixels, round boundary and absence of four corner dots",
                       "sosSent": False},
             "devices": [], "captures": [], "checks": [], "cleanup": [],
         }
@@ -204,8 +197,8 @@ class DisplayVerifier:
         if sender:
             entry.update(sender=sender, incomingLength=len(incoming))
         self.report["captures"].append(entry)
-        passed = metrics["roundBoundaryOk"] and metrics["nonBlankWatchFrame"] and metrics["indicatorPixelsOk"]
-        self.record(f"{owner.title()}: {case} atomic pixels, round boundary and indicators", entry,
+        passed = metrics["roundBoundaryOk"] and metrics["nonBlankWatchFrame"] and metrics["cornerDotsAbsent"]
+        self.record(f"{owner.title()}: {case} atomic pixels, round boundary and no corner dots", entry,
                     "passed" if passed else "failed")
         return entry
 
@@ -405,7 +398,7 @@ class DisplayVerifier:
 
 
 def self_test():
-    """Software-only tests for strict RLE decoding and round/indicator inspection."""
+    """Software-only tests for strict RLE decoding and round/corner inspection."""
     base = {"width": WIDTH, "height": HEIGHT, "encoding": "rgb565-rle"}
     assert decode_pixels({**base, "pixels": "e1000863"}) == [INK] * PIXEL_COUNT
     for encoded in ("", "00000863", "00010863", "e1010863", "ffff0863", "e100zzzz", "e100086"):
@@ -419,20 +412,20 @@ def self_test():
     for y in range(HEIGHT):
         for x in range(WIDTH):
             if (x - 120) ** 2 + (y - 120) ** 2 <= 119 ** 2:
-                pixels[y * WIDTH + x] = 0xFFFF
+                pixels[y * WIDTH + x] = PAPER
     assert inspect_pixels(pixels)["roundBoundaryOk"]
     assert inspect_pixels(pixels)["nonBlankWatchFrame"]
     pixels[0] = 0xFFFF
     assert inspect_pixels(pixels)["outsideCirclePixels"] == 1
     pixels[0] = INK
-    cx, cy, colour, _ = INDICATORS["nayaka"]
+    assert inspect_pixels(pixels, "nayaka")["cornerDotsAbsent"]
+    cx, cy, colour = 48, 48, 0xA2BE
     for y in range(cy - 10, cy + 11):
         for x in range(cx - 10, cx + 11):
             if (x - cx) ** 2 + (y - cy) ** 2 <= 10 ** 2:
                 pixels[y * WIDTH + x] = colour
-    assert inspect_pixels(pixels, "nayaka")["indicatorPixelsOk"]
-    assert not inspect_pixels(pixels)["indicatorPixelsOk"]
-    print("PASS: software-only RLE, round-boundary and sender-indicator checks; no serial access")
+    assert not inspect_pixels(pixels, "nayaka")["cornerDotsAbsent"]
+    print("PASS: software-only RLE, round-boundary and removed-corner-dot checks; no serial access")
 
 
 def main(argv=None):

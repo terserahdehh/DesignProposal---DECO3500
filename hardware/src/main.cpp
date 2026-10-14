@@ -18,6 +18,8 @@
 #include "direction_layout.h"
 #include "find_guidance.h"
 #include "pdr.h"
+#include "slide_direction.h"
+#include "table_tracking.h"
 
 // Pin profile verified against Waveshare's ESP32-S3-Touch-LCD-1.28 demo.
 static const char *OWNERS[] = {"nayaka", "syifa"};
@@ -26,7 +28,7 @@ static const uint8_t MACS[2][6] = {{0x8c,0xfd,0x49,0x9b,0xe7,0x40},{0x8c,0xfd,0x
 constexpr uint8_t SELF = PULSE_OWNER, OTHER = 1-PULSE_OWNER;
 constexpr uint16_t PAPER = 0xef7c, INK = 0x0863, PURPLE = 0xa2be, YELLOW = 0xfea2;
 constexpr uint32_t MAGIC = 0x50424e44, LOCATION_TTL = 60000;
-enum Kind : uint8_t { MESSAGE=1, ACK, HEARTBEAT, LOCATION, LOCATION_REQUEST, CLEAR_LOCATION };
+enum Kind : uint8_t { MESSAGE=1, ACK, HEARTBEAT, LOCATION, LOCATION_REQUEST, CLEAR_LOCATION, MOTION_STATE };
 struct __attribute__((packed)) Packet {
   uint32_t magic; uint8_t version, kind, owner; uint32_t sequence;
   char text[41]; double lat, lon; float accuracy; uint64_t timestamp;
@@ -79,13 +81,17 @@ QueueHandle_t imuQueue;bool imuReady=false,imuStreaming=false;uint32_t imuSample
 // Walk-to-find: the seeker's path (steps + turns) and ranges taken along it.
 WalkTracker walker;WalkRange walkRanges[WALK_MAX_SAMPLES];int walkCount=0;
 WalkFix walkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};
-// Warmer/colder: aim the band's top, move forward, stop; distance change votes.
+// Warmer/colder: slide the band and stop; the measured push and the distance
+// change vote. The push direction comes from the accelerometer, not the top.
 ProbeCompass prober;
+SlideDetector slider;SlideResult lastSlide{false,SlideReject::None,NAN,NAN,0,0,0};uint32_t slideCount=0;
+TableTracking tableTracker;
+uint32_t motionSequence=0,motionSentAt=0;
 const char *probeResultName(ProbeResult result){
   switch(result){
     case ProbeResult::Counted:return "counted";case ProbeResult::NoChange:return "no-change";
     case ProbeResult::Turned:return "turned";case ProbeResult::NotEnoughReadings:return "not-enough-readings";
-    case ProbeResult::Interrupted:return "interrupted";default:return "none";
+    case ProbeResult::Interrupted:return "interrupted";case ProbeResult::Unmeasured:return "unmeasured";case ProbeResult::Unsure:return "unsure";default:return "none";
   }
 }
 bool imuWrite(uint8_t reg,uint8_t value){Wire.beginTransmission(IMU_ADDRESS);Wire.write(reg);Wire.write(value);return Wire.endTransmission()==0;}
@@ -117,12 +123,13 @@ void processImu(){
     ImuReading reading{sample.micros,{},{}};
     for(int axis=0;axis<3;axis++){reading.accel[axis]=sample.accel[axis]/8192.0;reading.gyro[axis]=sample.gyro[axis]/64.0;}
     walker.update(reading);imuSamples++;
-    prober.motion(walker.stillSeconds()<0.25,walker.headingDegrees(),millis());
+    if(slider.update(reading,walker.headingDegrees(),&walker.orientation())){lastSlide=slider.last();slideCount++;prober.push(lastSlide);tableTracker.slide(lastSlide);dirty=true;}
+    prober.motion(slider.moving(),millis());
     // Serial-only raw stream for tuning step detection; off unless requested.
     if(imuStreaming)Serial.printf("M,%lu,%d,%d,%d,%d,%d,%d,%d\n",(unsigned long)sample.micros,sample.accel[0],sample.accel[1],sample.accel[2],sample.gyro[0],sample.gyro[1],sample.gyro[2],walker.steps());
   }
 }
-void startWalk(){walker.reset();prober.reset();walkCount=0;walkFix=WalkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};}
+void startWalk(){tableTracker.stop();walker.reset();prober.reset();slider.reset();slideCount=0;lastSlide=SlideResult{false,SlideReject::None,NAN,NAN,0,0,0};walkCount=0;walkFix=WalkFix{false,"walk",NAN,NAN,NAN,NAN,NAN,NAN,180};}
 void addWalkRange(double metres){
   if(!imuReady||!std::isfinite(metres))return;
   const double x=walker.x(),y=walker.y();
@@ -147,14 +154,27 @@ const char *walkHint(){
 const char *probePhaseName(ProbePhase phase){
   switch(phase){case ProbePhase::Ready:return "ready";case ProbePhase::Moving:return "moving";case ProbePhase::Measuring:return "measuring";default:return "waiting";}
 }
-// Short status only: the arrow comes from ordinary moves, no aiming step.
+// Short status only: the arrow comes from measured slides, no aiming step.
 const char *probeHint(){
   if(!imuReady)return "No motion sensor";
-  if(prober.phase()==ProbePhase::Moving||prober.phase()==ProbePhase::Measuring)return "Measuring...";
+  if(tableTracker.session()){
+    String state=tableTracker.state(millis(),slider.moving());
+    if(state=="moving")return "Tracking movement";
+    if(state=="estimate")return "Both bands share motion";
+    if(state=="reset-position")return "Reset: left / right";
+    if(state=="near")return "Very close: last arrow";
+    if(state=="peer-stale")return "LAST ESTIMATE - R RESET";
+    return "ESTIMATE - R RESET";
+  }
+  if(prober.phase()==ProbePhase::Waiting)return "Hold still 4 seconds";
+  if(prober.phase()==ProbePhase::Moving)return "Slide flat, then stop";
+  if(prober.phase()==ProbePhase::Measuring)return "Hold still 4 seconds";
   switch(prober.lastProbe()){
-    case ProbeResult::Counted:return prober.lastChange()<0?"CLOSER this way":"FARTHER that way";
-    case ProbeResult::NoChange:return "No change: move more";
-    default:return "Move around to find";
+    case ProbeResult::Counted:return prober.lastEvidence()>0?"CLOSER that way":"FARTHER that way";
+    case ProbeResult::NoChange:return "No change: slide more";
+    case ProbeResult::Unmeasured:return "Slide it flat, no lift";
+    case ProbeResult::Unsure:return "Unsure: slide again";
+    default:return "Slide band to find";
   }
 }
 
@@ -172,6 +192,9 @@ FindGuidance currentGuidance(DirectionQuality *quality=nullptr) {
   }
   ProbeEstimate probe=prober.estimate(millis(),walker.headingDegrees());
   if(probe.valid){inputs.probeBearing=probe.bearingFromTop;inputs.probeUncertaintyDegrees=probe.uncertaintyDegrees;}
+  inputs.motionTracking=tableTracker.session()!=0;
+  inputs.motionBearing=tableTracker.bearing(millis(),walker.headingDegrees(),slider.moving());
+  if(tableTracker.uses3D())inputs.motionBearing=tableTracker.bearingFromFrame(millis(),walker.orientation());
   return findGuidance(inputs);
 }
 void output(JsonDocument &doc) {
@@ -202,6 +225,25 @@ void hardwareJson(JsonDocument &doc) {
 #else
   audio["output"]="none";audio["reason"]="No buzzer or speaker is fitted; build with PULSE_BUZZER_PIN to drive one";
 #endif
+}
+// The last measured push: which way it went relative to the band's top now.
+void slideJson(JsonObject probe){
+  auto slide=probe.createNestedObject("slide");
+  slide["count"]=slideCount;slide["last"]=slideCount?slideRejectName(lastSlide.reject):"none";
+  slide["positionUsable"]=slidePositionUsable(lastSlide);
+  slide["rotationCompensated"]=lastSlide.rotationCompensated;
+  if(lastSlide.accepted){
+    slide["fromTopNow"]=std::fmod(std::fmod(lastSlide.headingFrameBearing-walker.headingDegrees(),360.0)+360.0,360.0);
+    slide["weight"]=lastSlide.weight;
+  }
+  if(std::isfinite(lastSlide.displacementMetres)){
+    slide["displacementMetres"]=lastSlide.displacementMetres;
+    slide["dx"]=lastSlide.displacementXMetres;slide["dy"]=lastSlide.displacementYMetres;
+    slide["dz"]=lastSlide.displacementZMetres;
+  }
+  if(std::isfinite(prober.lastSignalChange()))probe["signalChange"]=prober.lastSignalChange();
+  if(std::isfinite(prober.lastEvidence()))probe["evidence"]=prober.lastEvidence();
+  if(std::isfinite(prober.lastAim()))probe["aimFromTopNow"]=std::fmod(std::fmod(prober.lastAim()-walker.headingDegrees(),360.0)+360.0,360.0);
 }
 void measurementJson(JsonDocument &doc,const FindGuidance &g) {
   RangeReading r=rangeTracker.reading(millis());
@@ -235,6 +277,12 @@ void measurementJson(JsonDocument &doc,const FindGuidance &g) {
   probe["probes"]=prober.estimate(millis(),walker.headingDegrees()).probes;
   probe["phase"]=probePhaseName(prober.phase());
   if(std::isfinite(prober.lastChange()))probe["lastChangeMetres"]=prober.lastChange();
+  slideJson(probe);
+  auto motion=find.createNestedObject("motion");
+  motion["active"]=tableTracker.session()!=0;motion["session"]=tableTracker.session();
+  motion["state"]=tableTracker.state(millis(),slider.moving());motion["threeDimensional"]=tableTracker.uses3D();
+  motion["x"]=tableTracker.x();motion["y"]=tableTracker.y();motion["z"]=tableTracker.z();
+  if(g.motionEstimate){find["motionEstimate"]=true;find["motionBearing"]=g.visuals.light.bearing;}
 }
 void status(JsonDocument &doc,bool full=true) {
   if(full)hardwareJson(doc);
@@ -276,6 +324,11 @@ void sharePosition() {
   Packet p=packet(LOCATION);p.valid=fresh(localPosition);p.lat=localPosition.lat;p.lon=localPosition.lon;
   p.accuracy=localPosition.accuracy;p.timestamp=localPosition.timestamp;p.simulated=localPosition.simulated;transmit(p);
 }
+void shareMotion(){
+  Packet p=packet(MOTION_STATE,++motionSequence);
+  p.timestamp=tableTracker.session();p.lat=tableTracker.x();p.lon=tableTracker.y();p.accuracy=tableTracker.z();
+  p.valid=tableTracker.valid();p.simulated=slider.moving();transmit(p);
+}
 bool sendMessage(const String &text) {
   if(pendingSequence || !radioReady || !peerConnected()) return false;
   pendingSequence=nextSequence++;if(!nextSequence)nextSequence=1;
@@ -286,7 +339,7 @@ bool sendMessage(const String &text) {
 void onRadio(const uint8_t *mac,const uint8_t *data,int len) {
   if(len!=sizeof(Packet)||memcmp(mac,MACS[OTHER],6)!=0)return;
   Packet p;memcpy(&p,data,sizeof(p));
-  if(p.magic!=MAGIC||p.version!=1||p.owner!=OTHER||p.kind<MESSAGE||p.kind>CLEAR_LOCATION)return;
+  if(p.magic!=MAGIC||p.version!=1||p.owner!=OTHER||p.kind<MESSAGE||p.kind>MOTION_STATE)return;
   xQueueSend(radioQueue,&p,0);
 }
 void processRadio() {
@@ -314,6 +367,9 @@ void processRadio() {
       peerPosition={p.lat,p.lon,p.accuracy,p.timestamp,received,bool(p.valid),bool(p.simulated)};dirty=true;
     }else if(p.kind==LOCATION_REQUEST)sharePosition();
     else if(p.kind==CLEAR_LOCATION){peerPosition.valid=false;dirty=true;}
+    else if(p.kind==MOTION_STATE){
+      if(tableTracker.peer(uint32_t(p.timestamp),p.sequence,p.lat,p.lon,p.valid,p.simulated,millis(),p.accuracy))dirty=true;
+    }
   }
 }
 void onFtmReport(arduino_event_t *event){
@@ -332,7 +388,7 @@ void onFtmReport(arduino_event_t *event){
 void rangeEvent(const FtmReport &report,const RangeSession &session){
   // Serial-only telemetry for live accuracy/latency checks; not sent over BLE.
   RangeReading reading=rangeTracker.reading(report.at);FindGuidance g=currentGuidance();
-  StaticJsonDocument<1024> doc;doc["type"]="range";doc["owner"]=OWNERS[SELF];doc["t"]=report.at;
+  StaticJsonDocument<1280> doc;doc["type"]="range";doc["owner"]=OWNERS[SELF];doc["t"]=report.at;
   doc["status"]=report.status;doc["frames"]=session.frames;doc["rssi"]=report.rssi;
   if(session.valid)doc["rawMetres"]=session.rawMetres;
   doc["valid"]=reading.valid;doc["state"]=reading.state;
@@ -349,7 +405,12 @@ void rangeEvent(const FtmReport &report,const RangeSession &session){
   probe["last"]=probeResultName(prober.lastProbe());probe["probes"]=estimate.probes;
   probe["still"]=walker.stillSeconds();probe["phase"]=probePhaseName(prober.phase());
   if(std::isfinite(prober.lastChange()))probe["change"]=prober.lastChange();
+  slideJson(probe);
   if(estimate.valid){probe["bearing"]=estimate.bearingFromTop;probe["uncertainty"]=estimate.uncertaintyDegrees;}
+  auto motion=doc.createNestedObject("motion");
+  motion["state"]=tableTracker.state(millis(),slider.moving());motion["session"]=tableTracker.session();
+  motion["x"]=tableTracker.x();motion["y"]=tableTracker.y();
+  if(g.motionEstimate)motion["bearing"]=g.visuals.light.bearing;
   serializeJson(doc,Serial);Serial.println();
 }
 void processRanging(){
@@ -363,7 +424,7 @@ void processRanging(){
       dirty=true;
       if(session.valid){
         const double metres=calibratedRangeMetres(session.rawMetres);
-        addWalkRange(metres);prober.range(metres,report.at);
+        addWalkRange(metres);prober.range(metres,report.rssi,report.at);
       }
     }
     rangeEvent(report,session);
@@ -389,7 +450,7 @@ void button(const String &key) {
   }else if(view=="menu"){
     if(key=="back")menuIndex=(menuIndex+presetCount)%(presetCount+1);
     else if(key=="next")menuIndex=(menuIndex+1)%(presetCount+1);
-    else if(menuIndex==0){view="find";startWalk();transmit(packet(LOCATION_REQUEST));}
+    else if(menuIndex==0){view="find";if(!tableTracker.session())startWalk();transmit(packet(LOCATION_REQUEST));}
     else view="confirm";
   }else if(view=="confirm"){
     if(key=="ok"){if(!sendMessage(presets[menuIndex-1].text)){view="result";result=pendingSequence?"Please wait":"Peer offline";}}
@@ -474,8 +535,6 @@ void render(){
   frame.setTextDatum(MC_DATUM);frame.setTextColor(0x8c71,PAPER);frame.drawString(branding.text,branding.x,branding.y,branding.font);
   auto control=[](int x,const char *text){frame.fillRoundRect(x-23,50,46,31,9,0xc638);frame.setTextColor(INK,0xc638);frame.setTextDatum(MC_DATUM);frame.drawString(text,x,66,2);};
   control(57,"<");control(120,"OK");control(183,">");
-  const int lx[]={48,192,48,192},ly[]={48,48,192,192};const uint16_t colors[]={PURPLE,0xf208,0x3666,YELLOW};
-  for(int i=0;i<4;i++){bool active=(i==0&&OTHER==0||i==3&&OTHER==1)&&unread;frame.fillCircle(lx[i],ly[i],active?10:6,active?colors[i]:0xa534);if(active)frame.drawCircle(lx[i],ly[i],13,colors[i]);}
   frame.fillRoundRect(39,94,162,94,9,INK);frame.drawRoundRect(39,94,162,94,9,0x6b6d);
   if(view=="home"){
     label(NAMES[SELF],120,113,SELF==0?PURPLE:YELLOW,4);label("Together, further.",120,139);label(peerConnected()?String(NAMES[OTHER])+" connected":"Waiting for peer",120,165,0xbdf7);
@@ -502,6 +561,11 @@ void render(){
       frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
       label("WALK ESTIMATE +/-"+String(g.walkUncertaintyDegrees,0)+" deg",120,114,0x07ff,1);
       label(distance,120,172,0xffff,2);label(detail,120,183,0xbdf7,1);
+    }else if(g.mode==FindMode::MotionEstimate){
+      DirectionArrow arrow=g.visuals.arrow;
+      frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
+      label("MOTION ESTIMATE",120,114,0x07ff,1);
+      label(distance,120,172,0xffff,2);label(probeHint(),120,183,0xbdf7,1);
     }else if(g.mode==FindMode::ProbeEstimate){
       DirectionArrow arrow=g.visuals.arrow;
       frame.fillTriangle(arrow.tip.x,arrow.tip.y,arrow.left.x,arrow.left.y,arrow.right.x,arrow.right.y,peerColour);
@@ -515,7 +579,7 @@ void render(){
       label(distance,120,172,0xffff,2);label(measured+" | < > turn",120,183,0xbdf7,1);
     }else if(g.mode==FindMode::DistanceOnly){
       label(distance,120,128,peerColour,4);label(detail,120,150,0xbdf7,1);
-      label(probeHint(),120,161,0x07ff,1);label(walkHint(),120,172,0xbdf7,1);
+      label(probeHint(),120,161,0x07ff,1);label(tableTracker.session()?"MOTION ESTIMATE":walkHint(),120,172,0xbdf7,1);
       label("< > : demo direction",120,183,0xbdf7,1);
     }else if(g.mode==FindMode::Uncertain){
       label(distance,120,126);label("GPS too uncertain",120,145,0xbdf7);
@@ -575,6 +639,12 @@ void command(const String &line){
   if(request.containsKey("owner") && String(request["owner"].as<const char*>())!=OWNERS[SELF]){reply["ok"]=false;reply["error"]="Wrong band owner";output(reply);return;}
   String cmd=request["cmd"]|"";
   if(cmd=="hello"||cmd=="status")status(reply);
+  else if(cmd=="motion_start"){
+    uint32_t session=request["session"]|uint32_t(0);
+    double separation=request["separationMetres"]|-1.0;
+    if(!imuReady||!session||!std::isfinite(separation)||separation<0.05||separation>5){reply["ok"]=false;reply["error"]="Align both screens, Nayaka left; give session and actual separation 0.05-5 m";}
+    else{startWalk();tableTracker.start(session,SELF,separation,millis());view="find";demoBearing=NAN;motionSentAt=0;shareMotion();dirty=true;status(reply);}
+  }else if(cmd=="motion_stop"){tableTracker.stop();prober.reset();shareMotion();dirty=true;status(reply);}
   else if(cmd=="presets"){
     // Validate before replacing the old list; NVS writes finish before acknowledgement.
     JsonArrayConst items=request["messages"];
@@ -743,6 +813,7 @@ void loop(){
     char c=Serial.read();if(c=='\n'){command(serialLine);serialLine="";}else if(c!='\r'){if(serialLine.length()<3072)serialLine+=c;else serialLine="";}
   }
   uint32_t now=millis();
+  if(now-motionSentAt>=100){motionSentAt=now;shareMotion();if(tableTracker.session())dirty=true;}
   if(now-heartbeatAt>=2000){heartbeatAt=now;transmit(packet(HEARTBEAT));sharePosition();dirty=true;DynamicJsonDocument state(6144);state["type"]="status";status(state,false);output(state);}
   FindGuidance g=currentGuidance();
   // Expiry or loss must clear the ring promptly, not at the next heartbeat.

@@ -292,6 +292,36 @@ static void namesForStatus() {
   assert(std::strcmp(ringShapeName(RingShape::Full), "full") == 0);
 }
 
+static void motionTrackingNeverFallsBackToAnOldProbe() {
+  auto inputs=probed(270,64);
+  inputs.motionTracking=true;
+  inputs.motionBearing=45;
+  auto fresh=findGuidance(inputs);
+  assert(fresh.mode==FindMode::MotionEstimate && fresh.motionEstimate);
+  assert(fresh.visuals.arrow.visible && angularGap(fresh.visuals.light.bearing,45)<1e-9);
+  inputs.motionBearing=NAN; // peer moved, telemetry expired or position was lost
+  inputs.demoBearing=90;
+  auto lost=findGuidance(inputs);
+  assert(lost.mode==FindMode::DistanceOnly && !lost.visuals.arrow.visible);
+  assert(!lost.probeEstimate && !lost.demoDirection);
+}
+
+static void calibratedMotionArrowSurvivesRangeAndPeerLoss() {
+  auto inputs=probed(270,64);
+  inputs.motionTracking=true;
+  inputs.motionBearing=45;
+  inputs.range=NO_RANGE;
+  inputs.peerConnected=false;
+  auto held=findGuidance(inputs);
+  assert(held.mode==FindMode::MotionEstimate && held.motionEstimate);
+  assert(held.visuals.arrow.visible && !held.distanceKnown);
+  assert(angularGap(tipBearing(held.visuals.arrow),45)<3);
+  assert(distanceText(held)=="Distance unknown");
+  assert(!held.probeEstimate && !held.demoDirection && !held.directionUsable);
+  inputs.finding=false;
+  assert(!findGuidance(inputs).visuals.arrow.visible);
+}
+
 int main() {
   arrowAndQuarterRingShareOneBearing();
   measuredDistanceWithoutDirection();
@@ -304,5 +334,7 @@ int main() {
   walkEstimateShowsAnArrowWithItsUncertainty();
   warmerColderProbesShowALabelledArrow();
   namesForStatus();
+  motionTrackingNeverFallsBackToAnOldProbe();
+  calibratedMotionArrowSurvivesRangeAndPeerLoss();
   std::cout << "PASS: arrow/ring alignment and wraparound, distance-only ring, unusable GPS, contradiction, offline/stale/recovery, labelled demo direction\n";
 }

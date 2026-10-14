@@ -9,7 +9,7 @@
 #include "walk_locate.h"
 #include "probe_compass.h"
 
-enum class FindMode : uint8_t { Offline, Unavailable, Uncertain, DistanceOnly, Direction, DemoDirection, WalkEstimate, ProbeEstimate };
+enum class FindMode : uint8_t { Offline, Unavailable, Uncertain, DistanceOnly, Direction, DemoDirection, WalkEstimate, ProbeEstimate, MotionEstimate };
 enum class DistanceSource : uint8_t { None, WifiRange, PhoneGps };
 enum class RingShape : uint8_t { None, Quarter, Full };
 
@@ -23,6 +23,8 @@ struct FindInputs {
   double walkBearing = NAN, walkUncertaintyDegrees = NAN;
   // Warmer/colder probes, also relative to the band's current heading.
   double probeBearing = NAN, probeUncertaintyDegrees = NAN;
+  bool motionTracking = false;
+  double motionBearing = NAN;
 };
 
 struct FindGuidance {
@@ -42,6 +44,7 @@ struct FindGuidance {
   double walkUncertaintyDegrees;
   bool probeEstimate;
   double probeUncertaintyDegrees;
+  bool motionEstimate = false;
 };
 
 // One decision feeds the LCD, status JSON and beeps. Usable phone GPS gives a
@@ -52,11 +55,11 @@ inline FindGuidance findGuidance(const FindInputs &in) {
   FindGuidance guidance{FindMode::Offline, DistanceSource::None, false, NAN, NAN, false, NAN,
                         directionVisuals(false, false, false, false, false, NAN, NAN), RingShape::None,
                         proximityFeedback(false, NAN), 0, false, NAN, false, NAN, false, NAN};
-  if (!in.peerConnected) return guidance;
+  if (!in.peerConnected && !in.motionTracking) return guidance;
   const bool locations = in.localFresh && in.peerFresh;
   const bool ranged = in.range.valid && std::isfinite(in.range.metres) && in.range.metres >= 0 &&
                       std::isfinite(in.range.uncertaintyMetres);
-  bool direction = locations && in.gpsQuality.usable && std::isfinite(in.gpsBearing) &&
+  bool direction = !in.motionTracking && locations && in.gpsQuality.usable && std::isfinite(in.gpsBearing) &&
                    std::isfinite(in.gpsMetres) && in.gpsMetres >= 0;
   // A measured separation inside the GPS uncertainty means the GPS separation
   // and its bearing are wrong, however usable the fixes look on their own.
@@ -74,12 +77,14 @@ inline FindGuidance findGuidance(const FindInputs &in) {
   }
   guidance.distanceKnown = guidance.source != DistanceSource::None;
   // Estimates need a current measured distance and yield to a real direction.
-  const bool walk = !direction && ranged && std::isfinite(in.walkBearing) &&
+  const bool motion = in.motionTracking && std::isfinite(in.motionBearing);
+  const bool walk = !in.motionTracking && !direction && ranged && std::isfinite(in.walkBearing) &&
                     in.walkUncertaintyDegrees >= 0 && in.walkUncertaintyDegrees <= WALK_MAX_BEARING_UNCERTAINTY_DEGREES;
-  const bool probe = !direction && !walk && ranged && std::isfinite(in.probeBearing) &&
+  const bool probe = !in.motionTracking && !direction && !walk && ranged && std::isfinite(in.probeBearing) &&
                      in.probeUncertaintyDegrees >= 0 && in.probeUncertaintyDegrees <= PROBE_MAX_UNCERTAINTY_DEGREES;
-  const bool demo = !direction && !walk && !probe && ranged && std::isfinite(in.demoBearing);
-  guidance.mode = direction ? FindMode::Direction : walk ? FindMode::WalkEstimate : probe ? FindMode::ProbeEstimate
+  const bool demo = !in.motionTracking && !direction && !walk && !probe && ranged && std::isfinite(in.demoBearing);
+  guidance.motionEstimate = motion;
+  guidance.mode = motion ? FindMode::MotionEstimate : direction ? FindMode::Direction : walk ? FindMode::WalkEstimate : probe ? FindMode::ProbeEstimate
                 : demo ? FindMode::DemoDirection : ranged ? FindMode::DistanceOnly
                 : locations ? FindMode::Uncertain : FindMode::Unavailable;
   guidance.directionUsable = direction;
@@ -93,9 +98,12 @@ inline FindGuidance findGuidance(const FindInputs &in) {
   guidance.proximity = proximityFeedback(guidance.distanceKnown, guidance.metres);
   if (!in.finding) return guidance;
 
-  if (direction || walk || probe || demo) {
-    const double shown = direction ? in.gpsBearing : walk ? in.walkBearing : probe ? in.probeBearing : in.demoBearing;
+  if (motion || direction || walk || probe || demo) {
+    const double shown = motion ? in.motionBearing : direction ? in.gpsBearing : walk ? in.walkBearing : probe ? in.probeBearing : in.demoBearing;
     guidance.visuals = directionVisuals(true, true, true, true, true, shown, guidance.metres);
+    // The prototype explicitly retains its calibrated/last motion arrow
+    // even when radio distance is unavailable. Do not invent a distance.
+    if (motion) guidance.visuals.arrow = directionArrow(shown);
     if (guidance.visuals.light.visible) guidance.ring = RingShape::Quarter;
   } else if (ranged) {
     guidance.ring = RingShape::Full;
@@ -116,6 +124,7 @@ inline const char *findModeName(FindMode mode) {
     case FindMode::DemoDirection: return "demo-direction";
     case FindMode::WalkEstimate: return "walk-estimate";
     case FindMode::ProbeEstimate: return "probe-estimate";
+    case FindMode::MotionEstimate: return "motion-estimate";
     case FindMode::DistanceOnly: return "distance";
     case FindMode::Uncertain: return "uncertain";
     case FindMode::Unavailable: return "unavailable";

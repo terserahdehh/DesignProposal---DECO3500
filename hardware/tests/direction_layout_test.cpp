@@ -82,19 +82,11 @@ int main(int argc, char **argv) {
       // SOS triangle edges are x=120 +/- 15*(y-192)/24 over y192..216.
       if (y >= 192 && y <= 216)
         assert(std::abs(x - 120) > 15.0 * (y - 192) / 24.0);
-      // Active purple/yellow rings use radius13; a one-pixel margin covers
-      // circle raster rounding. The other two indicators remain radius6.
-      const int indicatorX[] = {48, 192, 48, 192}, indicatorY[] = {48, 48, 192, 192};
-      for (int index = 0; index < 4; ++index) {
-        int guard = (index == 0 || index == 3) ? 14 : 7;
-        assert((x - indicatorX[index]) * (x - indicatorX[index]) +
-               (y - indicatorY[index]) * (y - indicatorY[index]) > guard * guard);
-      }
     }
   }
   for (int degree = 0; degree < 360; ++degree) {
     assert(overlap(allGlyphs, arcPixels(degree)) == 0);
     assert(overlap(allGlyphs, arcPixels(degree + 0.25)) == 0);
   }
-  std::cout << "PASS: actual TFT font bitmaps clear the complete quarter arc, SOS and indicators at all bearings\n";
+  std::cout << "PASS: actual TFT font bitmaps clear the complete quarter arc and SOS at all bearings\n";
 }

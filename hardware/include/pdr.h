@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <stdint.h>
+#include "rest_motion.h"
 
 // Pedestrian dead reckoning for walk-to-find: counts steps from the vertical
 // bounce and turns from the gyroscope about "up" (from gravity). It assumes
@@ -30,6 +31,7 @@ class WalkTracker {
   double up_[3] = {0, 0, 1}, gravity_ = 1, normAverage_ = 1, gyroAverage_[3] = {}, bias_[3] = {};
   double stillSeconds_ = 0, steadySeconds_ = 0, heading_ = 0, x_ = 0, y_ = 0, vertical_ = 0;
   int steps_ = 0;
+  MotionMatrix orientation_;
 
  public:
   // New walk origin and heading; keeps the learned gyro offset and gravity.
@@ -38,6 +40,7 @@ class WalkTracker {
     steps_ = 0;
     armed_ = true;
     above_ = false;
+    motionFrame(up_,0,orientation_);
   }
 
   void update(const ImuReading &reading) {
@@ -49,6 +52,7 @@ class WalkTracker {
       last_ = reading.micros;
       for (int i = 0; i < 3; ++i) { up_[i] = a[i] / norm; gyroAverage_[i] = g[i]; }
       gravity_ = normAverage_ = norm;
+      motionFrame(up_,0,orientation_);
       return;
     }
     const double dt = uint32_t(reading.micros - last_) / 1e6;
@@ -89,6 +93,13 @@ class WalkTracker {
       biasKnown_ = true;
     }
 
+    // Preserve full attitude across lifts and through a vertical screen.
+    // Reconstructing it from gravity for every movement loses a 180-degree
+    // turn when screen top crosses vertical. R resets this common frame.
+    double rotation[3];for(int i=0;i<3;++i)rotation[i]=g[i]-(biasKnown_?bias_[i]:0);
+    rotateMotionFrame(orientation_,rotation,dt);
+    if(stillSeconds_>.1)correctMotionUp(orientation_,a,dt/(.25+dt));
+
     double counterClockwise = 0, upward = 0;
     for (int i = 0; i < 3; ++i) { counterClockwise += (g[i] - bias_[i]) * up_[i]; upward += a[i] * up_[i]; }
     heading_ -= counterClockwise * dt;
@@ -114,6 +125,7 @@ class WalkTracker {
   double y() const { return y_; }
   int steps() const { return steps_; }
   bool biasKnown() const { return biasKnown_; }
+  const MotionMatrix &orientation() const { return orientation_; }
   // How long gravity has been steady with no rotation; near 0 while moving.
   double stillSeconds() const { return stillSeconds_; }
 };
