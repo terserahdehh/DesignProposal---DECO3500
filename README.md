@@ -74,6 +74,8 @@ hardware/CONNECT_SYIFA.md; Vercel needs no local Expo web server.
 
 ## Physical ESP32 bands and phone setup
 
+The `/phone` quick-message editor now offers **Add text** and **Add image**, with image selection, black-and-white preview, caption editing, picture replacement and deletion. The currently installed watches remain text-only: image presets stay in the browser, while an explicitly labelled **Sync text only** action keeps normal text transfer working. Watch firmware and the separate tracking branch are not changed. See [the quick-start guide](hardware/QUICK_START.md) for steps and limits.
+
 Use [the deployed physical-band setup page](https://pulseband-steel.vercel.app/phone) for actual ESP32 presets, incoming messages and phone location. Vercel HTTPS supports the same Direct Bluetooth workflow as localhost in compatible browsers. Hosted pages initially select Direct Bluetooth; select USB bridge explicitly when using the local companion service. The live band card displays the paired band's connection and approximate north-referenced guidance, and incoming custom messages open a browser popup. Hiding the browser popup leaves the watch popup available to dismiss on the watch.
 
 The physical firmware pairs only **Nayaka and Syifa** using their configured MAC addresses and shared key. Connecting an additional ESP32 or opening another laptop page does not add it to this pair. The bands communicate directly over ESP-NOW even without a laptop. Direction needs two separately located sources: both bands receiving one laptop's coordinates cannot locate two moving wearers. See the [October 12 code and verification report](hardware/AUDIT-2026-10-12.md) for feature status, hosting setup and remaining physical checks.
