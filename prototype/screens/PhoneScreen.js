@@ -10,6 +10,8 @@ import DirectionRing from '../components/DirectionRing';
 import { directionGlow } from '../utils/directionGlow';
 import { createLocationSharing, prefersPreciseLocation } from '../utils/locationSharing';
 import { describeLocationStatus } from '../utils/locationStatus';
+import PresetImage from '../components/PresetImage';
+import { choosePresetImage } from '../utils/presetImage';
 
 const NAMES = { nayaka: 'Nayaka', syifa: 'Syifa' };
 const COLOURS = { nayaka: THEME.purple, syifa: THEME.yellow };
@@ -27,6 +29,10 @@ export default function PhoneScreen() {
   const [owner, setOwner] = useState('nayaka');
   const [lists, setLists] = useState(() => Object.fromEntries(OWNERS.map(id => [id, readPresets(id)])));
   const [draft, setDraft] = useState('');
+  const [draftType, setDraftType] = useState('text');
+  const [draftImage, setDraftImage] = useState(null);
+  const [choosingImage, setChoosingImage] = useState(false);
+  const imageSession = useRef(0);
   const [editing, setEditing] = useState(null);
   const [previewId, setPreviewId] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -57,7 +63,7 @@ export default function PhoneScreen() {
   const [statusReceivedAt, setStatusReceivedAt] = useState(0);
   const [hiddenIncomingKey, setHiddenIncomingKey] = useState(null);
   const messages = lists[owner];
-  const editorBusy = syncing || loadingPresets || !!pendingLoad;
+  const editorBusy = syncing || loadingPresets || !!pendingLoad || choosingImage;
   const band = bands.find(item => item.owner === owner);
   const connected = transportMode === 'bluetooth' ? bluetooth.status === 'connected' && bluetooth.owner === owner : band?.connected === true && !bridgeError;
   const savedOnBand = synced[owner] === fingerprint(messages);
@@ -65,6 +71,9 @@ export default function PhoneScreen() {
   const preview = messages[previewIndex];
   const geolocation = Platform.OS === 'web' && typeof navigator !== 'undefined' ? navigator.geolocation : null;
   const liveBand = transportMode === 'bluetooth' ? bluetooth.band : band;
+  const hasImages = messages.some(message => message.image);
+  const imageSupported = liveBand?.capabilities?.imagePresets === true;
+  const textOnlySync = connected && hasImages && !imageSupported;
   const live = describeBandStatus(liveBand, owner, connected, statusReceivedAt, now);
   const showIncoming = live.incoming && live.incoming.key !== hiddenIncomingKey && !pendingLoad;
   const glow = live.mode === 'ready' ? directionGlow(liveBand.guidance.bearing, liveBand.guidance.metres) : null;
@@ -137,7 +146,7 @@ export default function PhoneScreen() {
   function chooseOwner(next) {
     if (editorBusy) return;
     if (next !== owner && bluetooth.status === 'connected') phoneBluetooth.disconnect();
-    setOwner(next); setDraft(''); setEditing(null); setPreviewId(null); setNotice(null); setStorageWarning('');
+    imageSession.current++; setOwner(next); setDraft(''); setDraftType('text'); setDraftImage(null); setEditing(null); setPreviewId(null); setNotice(null); setStorageWarning('');
   }
 
   function chooseTransport(next) {
@@ -151,36 +160,60 @@ export default function PhoneScreen() {
     const result = savePresets(owner, next);
     setLists(previous => ({ ...previous, [owner]: result.messages || next }));
     setStorageWarning(result.ok ? '' : result.error);
-    setNotice({ kind: result.ok ? 'success' : 'warning', text: result.ok ? `${action} Saved on this browser. Sync to update ${NAMES[owner]}'s band.` : `${action} ${result.error}` });
+    const guidance = next.some(message => message.image) && !imageSupported ? ' Images are browser-only on the current firmware; Sync text only transfers the text presets.' : ` Sync to update ${NAMES[owner]}'s band.`;
+    setNotice({ kind: result.ok ? 'success' : 'warning', text: result.ok ? `${action} Saved on this browser.${guidance}` : `${action} ${result.error}` });
   }
 
   function saveMessage() {
     if (editorBusy) return;
     const error = messageError(draft);
     if (error) { setNotice({ kind: 'error', text: error }); return; }
+    if (draftType === 'image' && !draftImage) { setNotice({ kind: 'error', text: 'Choose an image first.' }); return; }
     if (!editing && messages.length >= MAX_MESSAGES) { setNotice({ kind: 'error', text: 'This band already has 8 messages. Edit or delete one first.' }); return; }
     const id = editing || newMessageId();
-    const next = editing ? messages.map(message => message.id === editing ? { id, text: draft.trim() } : message) : [...messages, { id, text: draft.trim() }];
+    const item = { id, text: draft.trim(), ...(draftType === 'image' ? { image: draftImage } : {}) };
+    const next = editing ? messages.map(message => message.id === editing ? item : message) : [...messages, item];
     updateMessages(next, editing ? 'Message updated.' : 'Message added.');
-    setPreviewId(id); setDraft(''); setEditing(null);
+    setPreviewId(id); resetEditor();
+  }
+
+  function resetEditor() {
+    imageSession.current++; setDraft(''); setDraftType('text'); setDraftImage(null); setEditing(null);
+  }
+
+  function editMessage(message) {
+    setEditing(message.id); setDraft(message.text); setDraftType(message.image ? 'image' : 'text'); setDraftImage(message.image || null); setNotice(null);
+  }
+
+  async function selectImage() {
+    if (editorBusy) return;
+    const session = ++imageSession.current;
+    setChoosingImage(true);
+    try {
+      const image = await choosePresetImage();
+      if (!mounted.current || imageSession.current !== session || !image) return;
+      setDraftImage(image);
+      setNotice({ kind: 'info', text: 'Image prepared as a 32×32 black-and-white icon. Add a short caption, save, then sync.' });
+    } catch (error) { if (mounted.current && imageSession.current === session) setNotice({ kind: 'error', text: error.message }); }
+    finally { if (mounted.current && imageSession.current === session) setChoosingImage(false); }
   }
 
   function removeMessage(id) {
     if (editorBusy) return;
     updateMessages(messages.filter(message => message.id !== id), 'Message deleted.');
-    if (editing === id) { setEditing(null); setDraft(''); }
+    if (editing === id) resetEditor();
   }
 
-  async function syncMessages() {
+  async function syncMessages(textOnly = false) {
     if (!connected || editorBusy) return;
     const targetOwner = owner;
-    const snapshot = messages.map(message => ({ ...message }));
+    const snapshot = messages.filter(message => !textOnly || !message.image).map(message => ({ ...message }));
     setSyncing(true); setNotice({ kind: 'info', text: `Waiting for ${NAMES[targetOwner]}'s band to acknowledge…` });
     try {
       await transport.syncPresets(targetOwner, snapshot);
       if (!mounted.current) return;
       setSynced(previous => ({ ...previous, [targetOwner]: fingerprint(snapshot) }));
-      setNotice({ kind: 'success', text: `${NAMES[targetOwner]}'s band acknowledged ${snapshot.length} preset messages. Select them from the band's message menu.` });
+      setNotice({ kind: 'success', text: `${NAMES[targetOwner]}'s band acknowledged ${snapshot.length} preset messages. ${textOnly ? 'Text presets transferred; images remain saved in this browser and were not transferred.' : "Select them from the band's message menu."}` });
     } catch (error) { if (mounted.current) setNotice({ kind: 'error', text: error.message }); }
     finally { if (mounted.current) setSyncing(false); }
   }
@@ -194,7 +227,7 @@ export default function PhoneScreen() {
       const result = await transport.readPresets(targetOwner);
       if (!mounted.current) return;
       setSynced(previous => ({ ...previous, [targetOwner]: fingerprint(result.messages) }));
-      if (fingerprint(result.messages) !== fingerprint(messages) || draft.length || editing) {
+      if (fingerprint(result.messages) !== fingerprint(messages) || draft.length || editing || draftImage) {
         setPendingLoad({ owner: targetOwner, messages: result.messages });
         setNotice(null);
       } else setNotice({ kind: 'success', text: `${NAMES[targetOwner]}'s band acknowledged its stored messages. This browser already matches the band.` });
@@ -212,7 +245,7 @@ export default function PhoneScreen() {
     const result = savePresets(pendingLoad.owner, pendingLoad.messages, undefined, { preserveStoredText: true });
     setLists(previous => ({ ...previous, [pendingLoad.owner]: result.messages || pendingLoad.messages }));
     setStorageWarning(result.ok ? '' : result.error);
-    setDraft(''); setEditing(null); setPreviewId(null);
+    resetEditor(); setPreviewId(null);
     setNotice({ kind: result.ok ? 'success' : 'warning', text: result.ok ? `Loaded ${pendingLoad.messages.length} stored messages from ${NAMES[pendingLoad.owner]}'s band. Edit them here, then sync your changes.` : `Messages loaded for this visit. ${result.error}` });
     setPendingLoad(null);
   }
@@ -311,18 +344,25 @@ export default function PhoneScreen() {
             <Text style={styles.tinyNote}>Using a new phone? Connect your band, then load its saved messages to edit them here.</Text>
             <View style={styles.messageList}>{messages.map((message, index) => <View key={message.id} style={[styles.messageRow, preview?.id === message.id && styles.previewRow]}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Preview message ${index + 1}: ${message.text}`} onPress={() => setPreviewId(message.id)} style={styles.messageContent}>
-                <Text style={styles.messageNumber}>{String(index + 1).padStart(2, '0')}</Text><Text style={styles.messageText}>{message.text}</Text>
+                <Text style={styles.messageNumber}>{String(index + 1).padStart(2, '0')}</Text>{message.image && <PresetImage image={message.image} size={36} testID={`message-image-${message.id}`} />}<Text style={styles.messageText}>{message.text}</Text>
               </Pressable>
-              <View style={styles.rowActions}><Button accessibilityLabel={`Edit ${message.text}`} disabled={editorBusy} onPress={() => { setEditing(message.id); setDraft(message.text); setNotice(null); }}>Edit</Button><Button accessibilityLabel={`Delete ${message.text}`} disabled={editorBusy} onPress={() => removeMessage(message.id)}>Delete</Button></View>
+              <View style={styles.rowActions}><Button accessibilityLabel={`Edit ${message.text}`} disabled={editorBusy} onPress={() => editMessage(message)}>Edit</Button><Button accessibilityLabel={`Delete ${message.text}`} disabled={editorBusy} onPress={() => removeMessage(message.id)}>Delete</Button></View>
             </View>)}</View>
             {!messages.length && <Text style={styles.empty}>Your list is empty. Add a message below, or sync this empty list to clear the band.</Text>}
             <View style={styles.composer}>
               <View style={styles.cardTop}><Text style={styles.inputLabel}>{editing ? 'EDIT MESSAGE' : 'ADD A MESSAGE'}</Text><Text style={styles.count}>{draft.length} / {MAX_TEXT_LENGTH}</Text></View>
+              <View style={styles.actionRow}><Button testID="message-type-text" selected={draftType === 'text'} disabled={editorBusy} onPress={() => setDraftType('text')}>Add text</Button><Button testID="message-type-image" selected={draftType === 'image'} disabled={editorBusy} onPress={() => setDraftType('image')}>Add image</Button></View>
+              {draftType === 'image' && <View style={{ alignItems: 'flex-start', gap: 10 }}>
+                <Button testID="choose-preset-image" disabled={editorBusy} onPress={selectImage}>{choosingImage ? 'Preparing image…' : draftImage ? 'Replace image' : 'Choose image'}</Button>
+                {draftImage && <PresetImage image={draftImage} size={96} testID="draft-image-preview" />}
+                <Text style={styles.tinyNote}>PNG, JPEG or WebP, up to 5 MB. Converted locally to a 32×32 black-and-white icon, not a full-colour photo. Your current watch firmware is text-only; images can be saved and previewed here without changing the watches.</Text>
+              </View>}
               <TextInput testID="preset-input" accessibilityLabel={editing ? 'Edit preset message' : 'New preset message'} value={draft} onChangeText={setDraft} placeholder="Meet at the main entrance" placeholderTextColor={THEME.muted} autoCapitalize="sentences" maxLength={MAX_TEXT_LENGTH} editable={!editorBusy} onSubmitEditing={saveMessage} style={styles.input} />
-              <Text style={styles.tinyNote}>Up to 40 characters. Use letters, numbers and punctuation; the band font does not support emoji.</Text>
-              <View style={styles.actionRow}><Button testID="save-preset" primary disabled={editorBusy || !draft.trim() || !editing && messages.length >= MAX_MESSAGES} onPress={saveMessage}>{editing ? 'Save changes' : 'Add message'}</Button>{editing && <Button disabled={editorBusy} onPress={() => { setEditing(null); setDraft(''); }}>Cancel edit</Button>}</View>
+              <Text style={styles.tinyNote}>{draftType === 'image' ? 'Image caption: ' : ''}Up to 40 characters. Use letters, numbers and punctuation; the band font does not support emoji.</Text>
+              <View style={styles.actionRow}><Button testID="save-preset" primary disabled={editorBusy || !draft.trim() || draftType === 'image' && !draftImage || !editing && messages.length >= MAX_MESSAGES} onPress={saveMessage}>{editing ? 'Save changes' : draftType === 'image' ? 'Add image message' : 'Add message'}</Button>{editing && <Button disabled={editorBusy} onPress={resetEditor}>Cancel edit</Button>}</View>
             </View>
-            <View style={styles.syncRow}><View style={styles.syncCopy}><Text style={[styles.syncLabel, { color: savedOnBand ? '#86EFAC' : THEME.secondary }]}>{savedOnBand ? 'Band acknowledged this list' : 'Ready to sync to the band'}</Text><Text style={styles.tinyNote}>The band keeps its presets after USB is disconnected.</Text></View><View style={styles.actionRow}><Button testID="load-presets" disabled={!connected || editorBusy} onPress={loadFromBand}>{loadingPresets ? 'Reading…' : 'Load from band'}</Button><Button testID="sync-presets" primary disabled={!connected || editorBusy} onPress={syncMessages}>{syncing ? 'Syncing…' : `Sync to ${NAMES[owner]}`}</Button></View></View>
+            {hasImages && !imageSupported && <Text testID="image-support-notice" style={[styles.note, styles.error]}>Images are saved for browser preview only. The current watch firmware cannot receive images. Sync text only sends the text presets and leaves images in this browser; no firmware or tracking changes are made.</Text>}
+            <View style={styles.syncRow}><View style={styles.syncCopy}><Text style={[styles.syncLabel, { color: savedOnBand ? '#86EFAC' : THEME.secondary }]}>{savedOnBand ? 'Band acknowledged this list' : textOnlySync ? 'Text presets can sync · images stay in browser' : 'Ready to sync to the band'}</Text><Text style={styles.tinyNote}>The band keeps its presets after USB is disconnected.</Text></View><View style={styles.actionRow}><Button testID="load-presets" disabled={!connected || editorBusy} onPress={loadFromBand}>{loadingPresets ? 'Reading…' : 'Load from band'}</Button><Button testID="sync-presets" primary disabled={!connected || editorBusy || textOnlySync && !messages.some(message => !message.image)} onPress={() => syncMessages(textOnlySync)}>{syncing ? 'Syncing…' : `Sync ${textOnlySync ? 'text only ' : ''}to ${NAMES[owner]}`}</Button></View></View>
             {notice && <Text testID="preset-notice" accessibilityLiveRegion="polite" style={[styles.notice, notice.kind === 'error' && styles.error, notice.kind === 'success' && styles.success]}>{notice.text}</Text>}
             {!!storageWarning && <Text style={[styles.note, styles.error]}>{storageWarning}</Text>}
           </View>
@@ -363,10 +403,10 @@ export default function PhoneScreen() {
             <Text style={styles.cardLabel}>BAND PREVIEW</Text>
             <View style={styles.watchFrame}>
               <View style={styles.watchTop}><View style={[styles.led, { backgroundColor: COLOURS[owner] }]} /><Text style={styles.watchOwner}>{NAMES[owner].toUpperCase()}</Text><View style={[styles.led, { opacity: 0 }]} /></View>
-              <View style={styles.watchScreen}><Icon name="message" size={28} /><Text style={styles.watchMessage}>{preview ? preview.text.toUpperCase() : 'NO MESSAGES'}</Text><Text style={styles.watchCounter}>{messages.length ? `${previewIndex + 1} / ${messages.length}` : 'ADD A PRESET'}</Text></View>
+              <View style={styles.watchScreen}>{preview?.image ? <PresetImage image={preview.image} size={64} testID="band-preview-image" /> : <Icon name="message" size={28} />}<Text style={styles.watchMessage}>{preview ? preview.text.toUpperCase() : 'NO MESSAGES'}</Text><Text style={styles.watchCounter}>{messages.length ? `${previewIndex + 1} / ${messages.length}` : 'ADD A PRESET'}</Text></View>
               <View style={styles.watchButtons}><Button accessibilityLabel="Preview previous message" disabled={!messages.length} onPress={() => stepPreview(-1)} style={styles.watchButton}>◀</Button><Text style={styles.watchOK}>OK</Text><Button accessibilityLabel="Preview next message" disabled={!messages.length} onPress={() => stepPreview(1)} style={styles.watchButton}>▶</Button></View>
             </View>
-            <Text style={[styles.tinyNote, { textAlign: 'center' }]}>Preview only. Sync sends the saved list to the physical band.</Text>
+            <Text style={[styles.tinyNote, { textAlign: 'center' }]}>Preview only. Text can sync to your existing band. Images need compatible firmware; they are not transferred to a text-only watch.</Text>
           </View>
 
           <View style={styles.card}>
@@ -401,6 +441,7 @@ export default function PhoneScreen() {
       <View style={styles.modalOverlay}><View testID="incoming-band-popup" style={styles.modalCard}>
         <Text style={[styles.cardLabel, { color: COLOURS[live.incoming?.from] }]}>FROM {NAMES[live.incoming?.from]?.toUpperCase()}</Text>
         <Text accessibilityRole="header" accessibilityLiveRegion="assertive" style={styles.cardTitle}>{live.incoming?.text}</Text>
+        {live.incoming?.image && <PresetImage image={live.incoming.image} size={128} testID="incoming-image" />}
         <Text style={styles.note}>Received by {NAMES[owner]}'s physical band. Tap the watch to dismiss its own popup.</Text>
         <Button testID="hide-incoming" primary onPress={() => setHiddenIncomingKey(live.incoming?.key)}>Hide on this page</Button>
       </View></View>

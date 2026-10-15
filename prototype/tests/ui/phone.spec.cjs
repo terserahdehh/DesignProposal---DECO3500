@@ -8,7 +8,7 @@ async function installBand(page) {
     let input = '';
     const owner = 'nayaka';
     const commands = [];
-    const band = { owner, peer: 'syifa', peerConnected: true, messages: [{ id: 'gate', text: 'Meet at Gate 2' }], unread: false,
+    const band = { owner, peer: 'syifa', peerConnected: true, capabilities: { imagePresets: true }, messages: [{ id: 'gate', text: 'Meet at Gate 2' }], unread: false,
       location: { valid: true, timestamp: Date.now(), accuracy: 10, simulated: false }, peerLocation: { valid: true, timestamp: Date.now(), accuracy: 10, simulated: false },
       guidance: { available: true, usable: true, northReferenced: true, metres: 100, bearing: 90, accuracy: 20, bearingUncertaintyDegrees: 11.5 } };
     const notify = message => {
@@ -152,6 +152,89 @@ test('production phone route edits, loads and synchronizes actual protocol messa
   await page.reload();
   await expect(page.getByRole('button', { name: 'Edit Meet at Gate 2', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('image chooser, caption editing, replacement, reload, sync, incoming image and deletion work on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await connect(page);
+  await page.getByTestId('load-presets').click(); await page.getByTestId('confirm-load-presets').click();
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = c.height = 32;
+    const ctx = c.getContext('2d'); ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 32, 32);
+    ctx.fillStyle = 'black'; ctx.fillRect(0, 0, 16, 32); return c.toDataURL('image/png').split(',')[1];
+  });
+  async function pick(buffer, name = 'meeting.png', mimeType = 'image/png') {
+    const chosen = page.waitForEvent('filechooser'); await page.getByTestId('choose-preset-image').click();
+    await (await chosen).setFiles({ name, mimeType, buffer });
+  }
+  await page.getByTestId('message-type-image').click();
+  await pick(Buffer.from(png, 'base64'));
+  await expect(page.getByTestId('draft-image-preview')).toBeVisible();
+  await page.getByTestId('preset-input').fill('Our meeting point'); await page.getByTestId('save-preset').click();
+  await expect(page.getByTestId('band-preview-image')).toBeVisible();
+  await page.getByTestId('sync-presets').click();
+  await expect(page.getByTestId('preset-notice')).toContainText('acknowledged 2 preset messages');
+  const icon = await page.evaluate(() => window.__band.band.messages[1].image);
+  expect(icon.data).toBe('ffff0000'.repeat(32));
+  await page.getByRole('button', { name: 'Edit Our meeting point', exact: true }).click();
+  await expect(page.getByTestId('draft-image-preview')).toBeVisible();
+  await page.getByTestId('preset-input').fill('New meeting point'); await page.getByTestId('save-preset').click();
+  await page.getByTestId('sync-presets').click();
+  expect(await page.evaluate(() => window.__band.band.messages[1].image)).toEqual(icon);
+  await page.getByRole('button', { name: 'Edit New meeting point', exact: true }).click();
+  const replacement = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = c.height = 32;
+    const ctx = c.getContext('2d'); ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 32, 32);
+    ctx.fillStyle = 'black'; ctx.fillRect(16, 0, 16, 32); return c.toDataURL('image/png').split(',')[1];
+  });
+  await pick(Buffer.from(replacement, 'base64'));
+  await page.getByTestId('save-preset').click(); await page.getByTestId('sync-presets').click();
+  expect(await page.evaluate(() => window.__band.band.messages[1].image.data)).toBe('0000ffff'.repeat(32));
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Edit New meeting point', exact: true })).toBeVisible();
+  await page.getByTestId('transport-bluetooth').click();
+  await page.getByTestId('connect-bluetooth').click();
+  await page.evaluate(icon => window.__band.notify({ type: 'message', owner: 'nayaka', from: 'syifa', text: 'Photo from Syifa', sequence: 99, image: icon }), icon);
+  await expect(page.getByTestId('incoming-image')).toBeVisible();
+  await page.getByTestId('hide-incoming').click();
+  await page.getByRole('button', { name: 'Delete New meeting point', exact: true }).click();
+  await page.getByTestId('sync-presets').click();
+  await expect(page.getByTestId('preset-notice')).toContainText('acknowledged 1 preset messages');
+  expect(await page.evaluate(() => window.__band.band.messages.some(m => m.image))).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('invalid image files show errors without adding or syncing messages', async ({ page }) => {
+  await connect(page); await page.getByTestId('message-type-image').click();
+  const chosen = page.waitForEvent('filechooser'); await page.getByTestId('choose-preset-image').click();
+  await (await chosen).setFiles({ name: 'not-an-image.png', mimeType: 'image/png', buffer: Buffer.from('not a PNG') });
+  await expect(page.getByTestId('preset-notice')).toContainText('could not be decoded');
+  await expect(page.getByTestId('draft-image-preview')).toBeHidden();
+  await expect(page.getByTestId('save-preset')).toBeDisabled();
+  expect(await page.evaluate(() => window.__band.commands.some(p => p.cmd === 'presets'))).toBe(false);
+});
+
+test('existing text-only firmware syncs texts explicitly while browser images remain intact', async ({ page }) => {
+  await connect(page);
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', capabilities: null }));
+  const icon = { width: 32, height: 32, data: 'a5'.repeat(128) };
+  await page.evaluate(icon => {
+    localStorage.setItem('pulseband.presets.v1.nayaka', JSON.stringify([{ id: 'text', text: 'Text on watch' }, { id: 'image', text: 'Browser image', image: icon }]));
+  }, icon);
+  await page.reload(); await page.getByTestId('transport-bluetooth').click(); await page.getByTestId('connect-bluetooth').click();
+  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', capabilities: null }));
+  await expect(page.getByTestId('image-support-notice')).toContainText('browser preview only');
+  await expect(page.getByTestId('sync-presets')).toContainText('Sync text only');
+  await page.getByTestId('sync-presets').click();
+  await expect(page.getByTestId('preset-notice')).toContainText('were not transferred');
+  expect(await page.evaluate(() => window.__band.band.messages)).toEqual([{ id: 'text', text: 'Text on watch' }]);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pulseband.presets.v1.nayaka'))[1].image)).toEqual(icon);
+  await page.getByRole('button', { name: 'Edit Browser image', exact: true }).click();
+  await page.getByTestId('message-type-text').click();
+  await page.getByTestId('preset-input').fill('Now a text message'); await page.getByTestId('save-preset').click();
+  await expect(page.getByTestId('image-support-notice')).toBeHidden();
+  await page.getByTestId('sync-presets').click();
+  expect(await page.evaluate(() => window.__band.band.messages)).toEqual([{ id: 'text', text: 'Text on watch' }, { id: 'image', text: 'Now a text message' }]);
 });
 
 test('custom popups, repeated messages, dismissal and direction expiry work on mobile', async ({ page }) => {
