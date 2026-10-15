@@ -1,4 +1,6 @@
 // Presets are stored per wearer; only printable ASCII fits the firmware font.
+const { imageError, copyImage } = require('./presetImage');
+const copyPreset = ({ id, text, image }) => ({ id, text, ...(image !== undefined ? { image: copyImage(image) } : {}) });
 const OWNERS = ['nayaka', 'syifa'];
 const MAX_MESSAGES = 8;
 const MAX_TEXT_LENGTH = 40;
@@ -29,8 +31,9 @@ function validatePresets(messages) {
     if (!message || typeof message.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(message.id) || ids.has(message.id)) return { ok: false, error: 'Every message needs a unique, valid ID.' };
     const error = messageError(message.text);
     if (error) return { ok: false, error };
+    if (message.image !== undefined && imageError(message.image)) return { ok: false, error: imageError(message.image) };
     ids.add(message.id);
-    cleaned.push({ id: message.id, text: message.text.trim() });
+    cleaned.push(copyPreset({ ...message, text: message.text.trim() }));
   }
   return { ok: true, messages: cleaned };
 }
@@ -44,7 +47,7 @@ function validatedBandPresets(owner, response) {
   const checked = validatePresets(messages);
   if (!checked.ok || messages.some(message => message.text.length > MAX_TEXT_LENGTH)) throw new Error(`The band returned an invalid preset list. ${checked.error || 'Messages must fit the 40-character screen limit.'}`);
   // Keep the stored text intact; loading is a read, so it never rewrites the band.
-  return { owner, messages: messages.map(({ id, text }) => ({ id, text })) };
+  return { owner, messages: messages.map(copyPreset) };
 }
 
 function storageTarget(storage) { return storage === undefined ? globalThis.localStorage : storage; }
@@ -55,7 +58,7 @@ function readPresets(owner, storage) {
     if (!raw) return defaults();
     const parsed = JSON.parse(raw);
     const checked = validatePresets(parsed);
-    return checked.ok && parsed.every(message => message.text.length <= MAX_TEXT_LENGTH) ? parsed.map(({ id, text }) => ({ id, text })) : defaults();
+    return checked.ok && parsed.every(message => message.text.length <= MAX_TEXT_LENGTH) ? parsed.map(copyPreset) : defaults();
   } catch (_) { return defaults(); }
 }
 
@@ -64,7 +67,7 @@ function savePresets(owner, messages, storage, { preserveStoredText = false } = 
   const checked = validatePresets(messages);
   if (!checked.ok) return checked;
   if (preserveStoredText && messages.some(message => message.text.length > MAX_TEXT_LENGTH)) return { ok: false, error: 'Stored messages must fit the 40-character screen limit.' };
-  const savedMessages = preserveStoredText ? messages.map(({ id, text }) => ({ id, text })) : checked.messages;
+  const savedMessages = preserveStoredText ? messages.map(copyPreset) : checked.messages;
   try {
     const target = storageTarget(storage);
     if (!target) throw new Error('Storage unavailable');

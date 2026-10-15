@@ -96,6 +96,24 @@ test('long preset frames and notification replies survive 20-byte fragmentation'
   client.disconnect();
 });
 
+test('image presets require firmware capability and preserve all eight bitmaps over BLE', async () => {
+  const messages = Array.from({ length: 8 }, (_, i) => ({ id: `image_${i}`, text: `Image ${i}`, image: { width: 32, height: 32, data: 'a5'.repeat(128) } }));
+  const old = fakeBand(); const oldClient = createPhoneBluetooth(old.api);
+  await oldClient.connect('nayaka');
+  await assert.rejects(oldClient.syncPresets('nayaka', messages), /updated watch firmware/);
+  assert.equal(old.frames.length, 1); oldClient.disconnect();
+  const band = fakeBand('nayaka', packet => ({ ok: true, owner: 'nayaka', capabilities: { imagePresets: true }, messages: packet.messages || [] }));
+  const client = createPhoneBluetooth(band.api); await client.connect('nayaka');
+  assert.equal((await client.syncPresets('nayaka', messages)).ok, true);
+  assert.deepEqual(band.frames[1].messages, messages);
+  assert.deepEqual((await client.readPresets('nayaka')).messages, []);
+  band.notify(`${JSON.stringify({ type: 'message', owner: 'nayaka', from: 'syifa', text: 'Meeting photo', image: messages[0].image, sequence: 42 })}\n`);
+  assert.deepEqual(client.getState().band.incomingImage, messages[0].image);
+  band.notify(`${JSON.stringify({ type: 'message', owner: 'nayaka', from: 'syifa', text: 'Text only', sequence: 43 })}\n`);
+  assert.equal(client.getState().band.incomingImage, null);
+  client.disconnect();
+});
+
 test('real firmware top-level replies merge presets and location into verified band state', async () => {
   const messages = [{ id: 'meet', text: 'Meet at the gate' }];
   const fix = { lat: -27.47, lon: 153.03, accuracy: 10, timestamp: Date.now(), simulated: false };

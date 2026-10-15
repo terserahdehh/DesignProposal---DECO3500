@@ -1,4 +1,5 @@
 const { LOCATION_TTL_MS } = require('./locationFix');
+const { imageError, copyImage } = require('./presetImage');
 
 function initialTransportMode(location) {
   return location?.protocol === 'https:' && !['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname) ? 'bluetooth' : 'usb';
@@ -11,7 +12,8 @@ function describeBandStatus(band, owner, connected, observedAt, now = Date.now()
   const state = { ...empty, mode: 'waiting', title: 'Waiting for fresh locations from both wearers.',
     detail: 'Share each wearer’s location from their own phone. A laptop reports the laptop’s position.', peerConnected: band.peerConnected === true };
   if (band.unread === true && typeof band.incoming === 'string' && /^[\x20-\x7e]{1,40}$/.test(band.incoming))
-    state.incoming = { from: peer, text: band.incoming, key: `${owner}:${band.incomingSequence || 0}:${band.incoming}` };
+    state.incoming = { from: peer, text: band.incoming, key: `${owner}:${band.incomingSequence || 0}:${band.incoming}`,
+      ...(band.incomingImage && !imageError(band.incomingImage) ? { image: copyImage(band.incomingImage) } : {}) };
   const fresh = fix => fix?.valid === true && Number.isFinite(fix.timestamp) && fix.timestamp > 0 && now - fix.timestamp < LOCATION_TTL_MS && fix.timestamp - now <= 5000;
   const name = id => id === 'nayaka' ? 'Nayaka' : 'Syifa';
   if (!state.peerConnected) return { ...state, detail: `${name(peer)}’s paired band is offline. Power on both bands and bring them within radio range.` };

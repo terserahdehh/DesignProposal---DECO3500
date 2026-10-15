@@ -25,6 +25,21 @@ test('offline browser saves can never become hardware acknowledgements', async (
   await assert.rejects(bridge.syncPresets('nayaka', [{ id: 'safe', text: "I'm Safe" }]), /Cannot reach the USB bridge/);
 });
 
+test('USB image sync verifies firmware support before transferring any image bytes', async () => {
+  const messages = [{ id: 'photo', text: 'Meeting point', image: { width: 32, height: 32, data: 'a5'.repeat(128) } }];
+  const calls = []; let supported = false;
+  const bridge = createBandBridge('http://localhost:8787', { fetch: async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) });
+    return response({ ok: true, owner: 'nayaka', messages: [], capabilities: { imagePresets: supported } });
+  } });
+  await assert.rejects(bridge.syncPresets('nayaka', messages), /updated watch firmware/);
+  assert.equal(calls.length, 1); assert.match(calls[0].url, /\/status$/);
+  supported = true;
+  await bridge.syncPresets('nayaka', messages);
+  assert.match(calls.at(-1).url, /\/presets$/);
+  assert.deepEqual(calls.at(-1).body.messages, messages);
+});
+
 test('invalid messages and owners never reach the USB bridge', async () => {
   let requests = 0;
   const bridge = createBandBridge('http://localhost:8787', { fetch: async () => { requests++; return response({ ok: true }); } });

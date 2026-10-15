@@ -2,6 +2,7 @@
 const { SERVICE } = require('./bluetooth');
 const { validOwner, validatePresets, validatedBandPresets } = require('./presets');
 const { validateLocationFix } = require('./locationFix');
+const { imageError, copyImage, requireImageSupport } = require('./presetImage');
 const CONFIG_CHARACTERISTIC = 'b97b0003-7a62-4f1a-9b9c-0b13e9de3500';
 
 function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {}) {
@@ -59,9 +60,10 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
         if (response.type === 'message') {
           const peer = state.owner === 'nayaka' ? 'syifa' : 'nayaka';
           if (response.from !== peer || typeof response.text !== 'string' || !/^[\x20-\x7e]{1,40}$/.test(response.text) || !Number.isSafeInteger(response.sequence) || response.sequence <= 0) continue;
-          update({ band: { ...state.band, incoming: response.text, unread: true, view: 'incoming', incomingSequence: response.sequence } });
+          if (response.image !== undefined && imageError(response.image)) continue;
+          update({ band: { ...state.band, incoming: response.text, incomingImage: response.image ? copyImage(response.image) : null, unread: true, view: 'incoming', incomingSequence: response.sequence } });
         } else if (response.type === 'dismissed') {
-          update({ band: { ...state.band, incoming: '', unread: false, view: response.view || 'home' } });
+          update({ band: { ...state.band, incoming: '', incomingImage: null, unread: false, view: response.view || 'home' } });
         } else {
           update({ band: { ...state.band, result: response.type === 'sent' ? 'Received by band' : 'Delivery unconfirmed' } });
         }
@@ -144,6 +146,7 @@ function createPhoneBluetooth(api = globalThis.navigator?.bluetooth, options = {
       if (owner !== state.owner) throw new Error('Connect the selected wearer’s band first.');
       const checked = validatePresets(messages);
       if (!checked.ok) throw new Error(checked.error);
+      requireImageSupport(checked.messages, state.band);
       return rpc('presets', { messages: checked.messages });
     },
     async readPresets(owner) {

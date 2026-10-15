@@ -1,5 +1,6 @@
 const { normalizeBridgeUrl, validOwner, validatePresets, validatedBandPresets } = require('./presets');
 const { validateLocationFix } = require('./locationFix');
+const { requireImageSupport } = require('./presetImage');
 
 function createBandBridge(input, options = {}) {
   const base = normalizeBridgeUrl(input);
@@ -39,6 +40,11 @@ function createBandBridge(input, options = {}) {
       const path = ownerPath(owner);
       const checked = validatePresets(messages);
       if (!checked.ok) throw new Error(checked.error);
+      if (checked.messages.some(message => message.image)) {
+        const firmware = await request(`${path}/status`, {});
+        validatedBandPresets(owner, firmware);
+        requireImageSupport(checked.messages, firmware.band || firmware);
+      }
       return request(`${path}/presets`, { messages: checked.messages });
     },
     async readPresets(owner) {
