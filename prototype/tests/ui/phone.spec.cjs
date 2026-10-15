@@ -216,25 +216,31 @@ test('invalid image files show errors without adding or syncing messages', async
 
 test('existing text-only firmware syncs texts explicitly while browser images remain intact', async ({ page }) => {
   await connect(page);
-  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', capabilities: null }));
+  await page.evaluate(() => { window.__band.band.capabilities = null; window.__band.notify({ ...window.__band.band, type: 'status' }); });
   const icon = { width: 32, height: 32, data: 'a5'.repeat(128) };
   await page.evaluate(icon => {
     localStorage.setItem('pulseband.presets.v1.nayaka', JSON.stringify([{ id: 'text', text: 'Text on watch' }, { id: 'image', text: 'Browser image', image: icon }]));
   }, icon);
   await page.reload(); await page.getByTestId('transport-bluetooth').click(); await page.getByTestId('connect-bluetooth').click();
-  await page.evaluate(() => window.__band.notify({ ...window.__band.band, type: 'status', capabilities: null }));
+  await page.evaluate(() => { window.__band.band.capabilities = null; window.__band.notify({ ...window.__band.band, type: 'status' }); });
   await expect(page.getByTestId('image-support-notice')).toContainText('browser preview only');
   await expect(page.getByTestId('sync-presets')).toContainText('Sync text only');
   await page.getByTestId('sync-presets').click();
   await expect(page.getByTestId('preset-notice')).toContainText('were not transferred');
   expect(await page.evaluate(() => window.__band.band.messages)).toEqual([{ id: 'text', text: 'Text on watch' }]);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pulseband.presets.v1.nayaka'))[1].image)).toEqual(icon);
+  await page.getByRole('button', { name: 'Delete Text on watch', exact: true }).click();
+  await expect(page.getByTestId('sync-presets')).toContainText('Clear text list');
+  await page.getByTestId('sync-presets').click();
+  await expect(page.getByTestId('preset-notice')).toContainText('acknowledged 0 preset messages');
+  expect(await page.evaluate(() => window.__band.band.messages)).toEqual([]);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pulseband.presets.v1.nayaka'))[0].image)).toEqual(icon);
   await page.getByRole('button', { name: 'Edit Browser image', exact: true }).click();
   await page.getByTestId('message-type-text').click();
   await page.getByTestId('preset-input').fill('Now a text message'); await page.getByTestId('save-preset').click();
   await expect(page.getByTestId('image-support-notice')).toBeHidden();
   await page.getByTestId('sync-presets').click();
-  expect(await page.evaluate(() => window.__band.band.messages)).toEqual([{ id: 'text', text: 'Text on watch' }, { id: 'image', text: 'Now a text message' }]);
+  expect(await page.evaluate(() => window.__band.band.messages)).toEqual([{ id: 'image', text: 'Now a text message' }]);
 });
 
 test('custom popups, repeated messages, dismissal and direction expiry work on mobile', async ({ page }) => {
