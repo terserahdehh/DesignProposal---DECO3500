@@ -122,6 +122,14 @@ Open the local URL printed by Expo. For tests, transport details and redeploying
 
 Our interviews are collected in one document, covering communication, friend separation, phone use and accessibility at live music events. Explore the [research findings](research-findings/README.md) for the synthesis and evaluations.
 
+### Google Forms survey evidence
+
+Our survey received **27 responses**. In the chart, **48.1%** selected locating or reuniting with friends as their greatest difficulty, while **29.6%** selected communicating with friends.
+
+<p align="center">
+  <img src="research-findings/team/images/google-forms-survey-evidence.png" alt="Original Google Forms survey screenshot showing 27 responses: 48.1% selected locating or reuniting with friends, and 29.6% selected communicating with friends. Visible written responses describe poor reception, loud music and crowded venues." width="680">
+</p>
+
 ## Design journey and project wiki
 
 | Explore | What you will find |

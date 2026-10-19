@@ -23,13 +23,17 @@ are collected in one PDF; supporting research and evaluations are grouped by con
 
 This PDF replaces the earlier separate interview documents, transcript and analysis file.
 
+## Google Forms survey evidence
+
+The [original survey screenshot](team/images/google-forms-survey-evidence.png) shows **27 responses**: **48.1%** selected locating or reuniting with friends as their greatest difficulty and **29.6%** selected communicating with friends. The chart and visible written responses are displayed in the [team research page](team/README.md#google-forms-survey-evidence) and the main README.
+
 ## Supporting research and evaluations
 
 | Area | Contents |
 | --- | --- |
 | [Amy](amy/) | Scenario evaluation |
 | [Andhika Nayaka](andhika-nayaka/) | Research synthesis, netnography, secondary research and first-round usability testing |
-| [Team](team/) | Shared research task planning and the final friend-finding usability-testing summary |
+| [Team](team/) | Google Forms survey evidence, shared research task planning and the friend-finding usability-testing summary |
 
 ## Shared themes
 
