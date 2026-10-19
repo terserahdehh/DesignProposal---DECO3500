@@ -16,7 +16,7 @@ contributor, with shared planning material kept separately.
 | --- | --- |
 | [Amy](amy/) | Two interview documents and Amy's evaluation |
 | [Andhika Nayaka](andhika-nayaka/) | Interview transcript, analysis, netnography, secondary research, and first-round usability testing |
-| [Team](team/) | Shared research task planning |
+| [Team](team/) | Shared research task planning and the final friend-finding usability-testing summary |
 
 ## Shared themes
 

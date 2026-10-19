@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="440" viewBox="0 0 1280 440" role="img" aria-labelledby="title desc">
+  <title id="title">PulseBand — Stay connected. Feel the moment.</title>
+  <desc id="desc">Team 16's social wearable for concerts and music festivals. Two colourful signals meet around a shared pulse.</desc>
+  <rect width="1280" height="440" rx="28" fill="#fff9de"/>
+  <g fill="none" stroke="#e9dfb9" stroke-width="1.5">
+    <circle cx="1050" cy="220" r="228"/>
+    <circle cx="1050" cy="220" r="178"/>
+    <circle cx="1050" cy="220" r="128"/>
+  </g>
+  <rect x="56" y="44" width="208" height="34" rx="17" fill="#242622"/>
+  <text x="160" y="66" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="2" fill="#fff9de">TEAM 16 / DECO3500</text>
+  <text x="56" y="135" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" fill="#242622">PulseBand</text>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="70" font-weight="700" letter-spacing="-3">
+    <text x="52" y="222" fill="#242622">Stay connected.</text>
+    <text x="52" y="301" fill="#b64226">Feel the moment.</text>
+  </g>
+  <text x="56" y="369" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#55564d">Your people. Always within reach.</text>
+  <path d="M900 125 A143 143 0 0 1 1186 208" fill="none" stroke="#b993ef" stroke-width="20" stroke-linecap="round"/>
+  <path d="M1193 272 A143 143 0 0 1 925 325" fill="none" stroke="#efd955" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="1050" cy="220" r="78" fill="#242622"/>
+  <path d="M1004 222 H1025 L1038 194 L1056 248 L1070 222 H1096" fill="none" stroke="#fff9de" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="925" cy="149" r="20" fill="#b993ef" stroke="#fff9de" stroke-width="5"/>
+  <circle cx="1175" cy="291" r="20" fill="#efd955" stroke="#fff9de" stroke-width="5"/>
+  <text x="1224" y="407" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="2" fill="#55564d">SOCIAL &amp; MOBILE COMPUTING · 2026</text>
+</svg>
