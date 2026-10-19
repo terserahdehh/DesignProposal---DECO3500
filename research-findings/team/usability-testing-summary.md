@@ -1,14 +1,14 @@
 # Friend-finding usability testing — supplied evidence
 
-[Research index](../README.md) · [Testing video](../../promotional-materials/videos/usability-testing.mp4) · [Project evaluation](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Evaluation-and-Iteration)
+[Research index](../README.md) · [Testing transcript (PDF)](usability-testing-transcript.pdf) · [Testing video](../../promotional-materials/videos/usability-testing.mp4) · [Project evaluation](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Evaluation-and-Iteration)
 
 ## Evidence and scope
 
-The team's [promotional website](https://deco-3500-website-promo.vercel.app/#testing) reports **five participants** testing PulseBand's friend-finding and proximity interactions. The supplied [usability-testing video](../../promotional-materials/videos/usability-testing.mp4) and [A2 poster](../../promotional-materials/documents/pulseband-a2-poster.pdf) are archived with the final promotional materials. This summary was added on **19 October 2026**; that is the documentation date, not an inferred session date.
+The supplied [Usability Testing Transcript](usability-testing-transcript.pdf) contains **three pages of post-test group feedback**, with speakers labelled **Participants 1–5**. The team's [promotional website](https://deco-3500-website-promo.vercel.app/#testing) also reports five participants testing PulseBand's friend-finding and proximity interactions. The [usability-testing video](../../promotional-materials/videos/usability-testing.mp4) and [A2 poster](../../promotional-materials/documents/pulseband-a2-poster.pdf) are archived with the final promotional materials. The transcript is preserved unchanged. This summary was updated on **19 October 2026**; that is the documentation date, not an inferred session date.
 
-This is a later evidence set than [Usability Test 01](../andhika-nayaka/usability-test-01.md), which documents early narrated concept feedback. The participant count above comes from the promotional website; it is not a count inferred from the edited video.
+This is a later evidence set than [Usability Test 01](../andhika-nayaka/usability-test-01.md), which documents early narrated concept feedback. The five participant labels appear in the supplied transcript; the count is not inferred from the edited video.
 
-## Findings reported in the final materials
+## Findings in the transcript and final materials
 
 | Observation | Refinement direction reported by the team |
 | --- | --- |
@@ -23,4 +23,4 @@ These are qualitative observations and design directions reported in the supplie
 
 The findings reinforce the value of lightweight reconnection while showing that visual feedback must be easy to interpret. A direction cue needs consistent behaviour, and a proximity cue must be noticeable without adding redundant information.
 
-The supplied edited materials do not provide a complete session method, testing date, participant profiles, prototype version, independent task records or quantitative results. Add those records when available. Do not infer task-completion rates, an outdoor two-phone GPS check, reliable positioning in a festival crowd, or testing of every messaging/SOS feature from this evidence.
+The transcript documents the post-test feedback discussion, including the interviewer's prompts and participant responses. It does not include the full task protocol, testing date, participant profiles, prototype version, independent task records or quantitative results. Add those records when available. Do not infer task-completion rates, an outdoor two-phone GPS check, reliable positioning in a festival crowd, or testing of every messaging/SOS feature from this evidence.

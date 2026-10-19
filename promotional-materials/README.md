@@ -13,6 +13,8 @@
 
 The thumbnails open the original MP4 files. The website also provides video players. Video durations are rounded to the nearest second.
 
+[Read the usability-testing transcript (PDF)](../research-findings/team/usability-testing-transcript.pdf) · 3 pages of post-test feedback from Participants 1–5.
+
 ## A2 poster
 
 [![PulseBand A2 portrait poster: problem, research, concept development and evaluation](previews/poster-page-1.jpg)](documents/pulseband-a2-poster.pdf)

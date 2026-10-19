@@ -59,6 +59,8 @@ Typing and message customisation happen before the event on the [companion page]
 
 ### Tested with people. Refined through feedback.
 
+**[Read the usability-testing transcript (PDF)](research-findings/team/usability-testing-transcript.pdf)** · 3 pages
+
 Five participants tested friend-finding and proximity interactions, as summarised on the [promotional website](https://deco-3500-website-promo.vercel.app/#testing). Feedback highlighted three priorities:
 
 | What participants noticed | Design direction |

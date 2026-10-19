@@ -23,6 +23,12 @@ are collected in one PDF; supporting research and evaluations are grouped by con
 
 This PDF replaces the earlier separate interview documents, transcript and analysis file.
 
+## Usability-testing transcript
+
+**[Read the Usability Testing Transcript PDF](team/usability-testing-transcript.pdf)** · 3 pages
+
+Post-test feedback from Participants 1–5 covers directional guidance, proximity lights and the four proximity dots. See the [testing summary](team/usability-testing-summary.md) and [usability-testing video](../promotional-materials/videos/usability-testing.mp4) alongside the transcript.
+
 ## Google Forms survey evidence
 
 The [original survey screenshot](team/images/google-forms-survey-evidence.png) shows **27 responses**: **48.1%** selected locating or reuniting with friends as their greatest difficulty and **29.6%** selected communicating with friends. The chart and visible written responses are displayed in the [team research page](team/README.md#google-forms-survey-evidence) and the main README.
@@ -33,7 +39,7 @@ The [original survey screenshot](team/images/google-forms-survey-evidence.png) s
 | --- | --- |
 | [Amy](amy/) | Scenario evaluation |
 | [Andhika Nayaka](andhika-nayaka/) | Research synthesis, netnography, secondary research and first-round usability testing |
-| [Team](team/) | Google Forms survey evidence, shared research task planning and the friend-finding usability-testing summary |
+| [Team](team/) | Google Forms survey evidence, shared research tasks, usability-testing transcript and summary |
 
 ## Shared themes
 
