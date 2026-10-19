@@ -116,13 +116,19 @@ npm run web
 
 Open the local URL printed by Expo. For tests, transport details and redeploying the existing Vercel project, use the **[development and deployment guide](docs/DEVELOPMENT.md)**. The original detailed README instructions are preserved there.
 
+## Research interviews
+
+**[Read all interview transcripts (PDF)](research-findings/interview-transcripts.pdf)** · 4 interviews · 23 pages
+
+Our interviews are collected in one document, covering communication, friend separation, phone use and accessibility at live music events. Explore the [research findings](research-findings/README.md) for the synthesis and evaluations.
+
 ## Design journey and project wiki
 
 | Explore | What you will find |
 | --- | --- |
 | [Wiki home](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki) | Project overview and navigation |
 | [Design process](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Design-Process-Overview) | How the concept evolved from research to wearable |
-| [Research and insights](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Research-and-Insights) | Findings and links to source evidence |
+| [Research and insights](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Research-and-Insights) | Combined interview transcripts, findings and source evidence |
 | [Experience requirements](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Experience-Requirements) | Research translated into design priorities |
 | [Prototype and usage](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Prototype-and-Usage-Guide) | Web and physical demonstrations, setup and scope |
 | [Evaluation and iteration](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Evaluation-and-Iteration) | User feedback, refinements and engineering checks |
@@ -137,7 +143,7 @@ Open the local URL printed by Expo. For tests, transport details and redeploying
 | --- | --- |
 | [`prototype/`](prototype/) | Interactive Expo / React Native web prototype and companion page |
 | [`hardware/`](hardware/) | ESP32 firmware, bridge, setup and verification guides |
-| [`research-findings/`](research-findings/README.md) | Interviews, analysis, evaluations and shared research |
+| [`research-findings/`](research-findings/README.md) | Combined interview PDF, research synthesis, evaluations and shared research |
 | [`promotional-materials/`](promotional-materials/README.md) | Promotional and usability videos, poster, brochure and visual assets |
 | [`docs/`](docs/DEVELOPMENT.md) | Detailed development, testing and deployment instructions |
 

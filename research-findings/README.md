@@ -1,8 +1,8 @@
 # Research Findings
 
 This directory brings together the primary and secondary research for the
-DECO3500 concert and music-festival experience project. Research is grouped by
-contributor, with shared planning material kept separately.
+DECO3500 concert and music-festival experience project. All interview transcripts
+are collected in one PDF; supporting research and evaluations are grouped by contributor.
 
 ## Research question
 
@@ -10,12 +10,25 @@ contributor, with shared planning material kept separately.
 > communicate, and navigate crowded venues without distracting them from the
 > live experience?
 
-## At a glance
+## Interview transcripts
+
+**[Read the combined Interview Transcripts PDF](interview-transcripts.pdf)** · 4 interviews · 23 pages
+
+| Interview | Interviewer | Starts on PDF page |
+| --- | --- | --- |
+| Interview 1 · Participant 1 | Amy | 1 |
+| Interview 2 · Participant 2 | Amy | 6 |
+| Interview 3 · Participant 3 | Serafina | 11 |
+| Interview 4 · Participant 4 | Nayaka | 18 |
+
+This PDF replaces the earlier separate interview documents, transcript and analysis file.
+
+## Supporting research and evaluations
 
 | Area | Contents |
 | --- | --- |
-| [Amy](amy/) | Two interview documents and Amy's evaluation |
-| [Andhika Nayaka](andhika-nayaka/) | Interview transcript, analysis, netnography, secondary research, and first-round usability testing |
+| [Amy](amy/) | Scenario evaluation |
+| [Andhika Nayaka](andhika-nayaka/) | Research synthesis, netnography, secondary research and first-round usability testing |
 | [Team](team/) | Shared research task planning and the final friend-finding usability-testing summary |
 
 ## Shared themes

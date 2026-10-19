@@ -8,8 +8,7 @@ at concerts and music festivals.
 
 | Activity | Document | Purpose |
 | --- | --- | --- |
-| Semi-structured interview | [Interview 01 transcript](interview-01-transcript.md) | Detailed account of concert attendance, communication, accessibility, and navigation |
-| Thematic analysis | [Interview 01 analysis](interview-01-analysis.md) | Findings, behaviours, pain points, quotes, and design implications |
+| Interview evidence | [Combined Interview Transcripts PDF](../interview-transcripts.pdf) | Nayaka's interview is Interview 4, beginning on PDF page 18; the document contains all four team interviews |
 | Usability testing | [Usability test 01](usability-test-01.md) | Cleaned transcript and findings from an early concept evaluation |
 
 ## Headline insight
@@ -59,6 +58,6 @@ at concerts and music festivals.
 
 ## Limitations
 
-- Interview 01 represents one person's experience and should not be treated as representative of all concertgoers or all hard-of-hearing people.
+- Interview 4 in the combined PDF represents one person's experience and should not be treated as representative of all concertgoers or all hard-of-hearing people.
 - The first usability session evaluated an early phone-based representation of a wearable, not a functional wrist-worn device.
 - Technical feasibility and offline communication were discussed conceptually and were not validated in these sessions.
