@@ -278,6 +278,16 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(bridge.BridgeError):
             bridge.validate_command("location", missing)
 
+    def test_motion_start_needs_a_session_and_actual_separation(self):
+        self.assertEqual(bridge.validate_command("motion-start", {"session": 7, "separationMetres": 0.3}),
+                         ("motion_start", {"session": 7, "separationMetres": 0.3}))
+        for body in ({}, {"session": 0, "separationMetres": 0.3}, {"session": 2 ** 32, "separationMetres": 0.3},
+                     {"session": True, "separationMetres": 0.3}, {"session": "7", "separationMetres": 0.3},
+                     {"session": 7, "separationMetres": 0.01}, {"session": 7, "separationMetres": float("nan")},
+                     {"session": 7, "separationMetres": True}, {"session": 7}):
+            with self.subTest(body=body), self.assertRaises(bridge.BridgeError):
+                bridge.validate_command("motion-start", body)
+
 
 class HTTPTests(unittest.TestCase):
     def setUp(self):

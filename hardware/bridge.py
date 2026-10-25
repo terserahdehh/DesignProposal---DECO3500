@@ -367,6 +367,16 @@ def validate_command(action: str, body: Any):
         return "control", {"button": button}
     if action == "clear-location":
         return "clear_location", {}
+    if action == "motion-start":
+        # Seeds the known table arrangement; reset_bands.py sends both bands
+        # one shared session while this bridge keeps their USB ports.
+        session = body.get("session")
+        if isinstance(session, bool) or not isinstance(session, int) or not 0 < session <= 0xFFFFFFFF:
+            raise BridgeError("session must be an integer from 1 to 4294967295", 400)
+        separation = body.get("separationMetres")
+        if isinstance(separation, bool) or not isinstance(separation, (int, float)) or not 0.05 <= separation <= 5:
+            raise BridgeError("separationMetres must be a number from 0.05 to 5", 400)
+        return "motion_start", {"session": session, "separationMetres": separation}
     raise BridgeError("Unknown API endpoint", 404)
 
 
