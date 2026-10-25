@@ -145,7 +145,6 @@ People described poor reception, calls drowned out by music and difficulty typin
 | [Promotional materials](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Promotional-Materials) | Website, both videos, poster and brochure |
 | [Ethical considerations](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Ethical-Considerations) | Location, consent, accessibility and peer alerts |
 | [Progress records](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Standup-and-Progress-Records) | Project snapshots and team records |
-| [Tradeshow and submission](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Tradeshow-and-Submission) | Visitor scenario and submission preparation |
 
 ## Inside this repository
 
