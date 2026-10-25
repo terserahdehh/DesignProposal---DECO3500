@@ -4,7 +4,7 @@ Shared planning and coordination material for the team's research activities.
 
 ## Documents
 
-- [Team Research Tasks](Team%20Research%20Tasks.docx)
+- [Team research notes](research-notes.md)
 - [Usability Testing Transcript](usability-testing-transcript.pdf): the original three-page PDF with post-test feedback from Participants 1–5.
 - [Friend-finding usability testing](usability-testing-summary.md): findings from the transcript, video, poster and promotional website.
 
