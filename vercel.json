@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "framework": null,
+  "installCommand": "npm ci --prefix prototype --no-audit --no-fund",
+  "buildCommand": "npm --prefix prototype run build",
+  "outputDirectory": "prototype/dist",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/phone", "destination": "/" },
+    { "source": "/phone/", "destination": "/" }
+  ]
+}
