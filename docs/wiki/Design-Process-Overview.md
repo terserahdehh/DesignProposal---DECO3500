@@ -36,6 +36,10 @@ Our retrospective Week 9 record reports tutor concern that friend-finding remain
 
 Location exposed a major trade-off. The boards have neither GPS nor a compass, so each wearer must supply an independent phone location. The display calculates approximate distance and a north-referenced bearing; it does not rotate with the wrist. Expired or insufficiently separated location fixes suppress direction. This makes uncertainty consequential in the interface, but cannot provide indoor positioning, a safe route or metre-level movement tracking. Direct messaging avoids mobile data dependence; usable guidance still depends on phone location quality.
 
+![Current companion interface](https://github.com/terserahdehh/DesignProposal---DECO3500/raw/refs/heads/main/docs/assets/companion-interface.png)
+
+*Figure 2. Companion interface captured from the production website on 25 October 2026, before connecting hardware. This shows message preparation and transport selection; it is not a live hardware or location test.*
+
 ## Physical evaluation and learning
 
 Five participants subsequently tried Find Friend using two physical bands (Team 16, 2026b). Their discussion identified useful direction cues, inconsistent guidance during sideways movement, subtle brightness changes and unclear proximity dots. The transcript supports these qualitative findings, but records no controlled task times, success rates or accuracy measurements. It cannot establish festival reliability. Participant labels belong to this session and are not assumed to match the interview sample.

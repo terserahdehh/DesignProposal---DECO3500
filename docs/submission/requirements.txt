@@ -1,0 +1,5 @@
+Markdown>=3.7,<4
+lxml>=5,<7
+Pillow>=11,<14
+reportlab>=4,<6
+pypdf>=5,<7
