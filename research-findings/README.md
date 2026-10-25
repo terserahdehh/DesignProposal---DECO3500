@@ -30,9 +30,11 @@ This PDF replaces the earlier separate interview documents, transcript and analy
 
 Post-test feedback from Participants 1–5 covers directional guidance, proximity lights and the four proximity dots. See the [testing summary](team/usability-testing-summary.md) and [usability-testing video](../promotional-materials/videos/usability-testing.mp4) alongside the transcript.
 
-## Google Forms survey evidence
+## Survey results
 
-The [original survey screenshot](team/images/google-forms-survey-evidence.png) shows **27 responses**: **48.1%** selected locating or reuniting with friends as their greatest difficulty and **29.6%** selected communicating with friends. The chart and visible written responses are displayed in the [team research page](team/README.md#google-forms-survey-evidence) and the main README.
+Of 27 respondents, 13 (48.1%) selected locating or reuniting with friends as their greatest difficulty, and 8 (29.6%) selected communicating with friends. Written answers described poor mobile reception, loud music and difficulty typing in crowds. These findings shaped our focus on friend-finding and prepared messages on a wearable.
+
+[Survey results and design decisions](team/README.md#survey-results)
 
 ## Supporting research and evaluations
 
@@ -40,7 +42,7 @@ The [original survey screenshot](team/images/google-forms-survey-evidence.png) s
 | --- | --- |
 | [Amy](amy/) | Scenario evaluation |
 | [Andhika Nayaka](andhika-nayaka/) | Research synthesis, netnography, secondary research and first-round usability testing |
-| [Team](team/) | Google Forms survey evidence, shared research tasks, usability-testing transcript and summary |
+| [Team](team/) | Survey results, shared research tasks, usability-testing transcript and summary |
 
 ## Shared themes
 

@@ -124,13 +124,13 @@ Open the local URL printed by Expo. For tests, transport details and redeploying
 
 Our interviews are collected in one document, covering communication, friend separation, phone use and accessibility at live music events. Explore the [research findings](research-findings/README.md) for the synthesis and evaluations.
 
-### Google Forms survey evidence
+### Survey results
 
-Our survey received **27 responses**. In the chart, **48.1%** selected locating or reuniting with friends as their greatest difficulty, while **29.6%** selected communicating with friends.
+Our survey received **27 responses**. The biggest problems were **locating or reuniting with friends (13 people, 48.1%)** and **communicating with friends (8 people, 29.6%)**.
 
-<p align="center">
-  <img src="research-findings/team/images/google-forms-survey-evidence.png" alt="Original Google Forms survey screenshot showing 27 responses: 48.1% selected locating or reuniting with friends, and 29.6% selected communicating with friends. Visible written responses describe poor reception, loud music and crowded venues." width="680">
-</p>
+People described poor reception, calls drowned out by music and difficulty typing in a crowd. This led us to focus on a wearable with simple direction/proximity cues and prepared messages that do not need typing. The physical bands exchange messages directly; their approximate direction uses shared phone coordinates.
+
+[Survey results and design decisions](research-findings/team/README.md#survey-results)
 
 ## Design journey and project wiki
 
