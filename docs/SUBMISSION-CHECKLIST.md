@@ -1,6 +1,6 @@
 # Assignment 3 submission audit
 
-Audited against the supplied `3_Design_Project_v02.pdf` and the user's latest submission instructions on **25 October 2026 (Brisbane)**. This is a present-day evidence audit. Completed artefacts, team-confirmed participation and unverified historical evidence are distinguished below.
+Audited against the supplied `3_Design_Project_v02.pdf` and the user's latest submission instructions on **25 October 2026 (Brisbane)**. This is a present-day evidence audit. Completed artefacts, team-confirmed participation and unverified historical evidence are distinguished below. The [validation record](VALIDATION-2026-10-25.md) reports the completed application, deployment, PDF and link checks.
 
 ## Submission file and current instructions
 

@@ -15,14 +15,14 @@ The shared production website is https://pulseband-steel.vercel.app; physical-ba
 
 ### Verified redeployment on 25 October 2026
 
-The existing `pulseband` project was redeployed as **Ready** from commit `9247a2131eb83f71f24c0ac31f49255f4afd7a0f`:
+The existing `pulseband` project was first redeployed from `prototype/`, then its repository-root configuration was independently built and deployed as **Ready** from commit `651432d`:
 
 - Production: https://pulseband-steel.vercel.app/
 - Companion: https://pulseband-steel.vercel.app/phone
-- Immutable deployment: https://pulseband-awergri1b-andhikanayakaaws-projects.vercel.app
-- Dashboard: https://vercel.com/andhikanayakaaws-projects/pulseband/HomHGBTDGQEob91A7n7SDEga4SfM
+- Immutable deployment: https://pulseband-jhr3y0qoe-andhikanayakaaws-projects.vercel.app
+- Dashboard: https://vercel.com/andhikanayakaaws-projects/pulseband/61dvUJCc6Sn3Ax42WxA1ZL37Jp2H
 
-Public `/`, `/phone` and `/phone/` returned HTTP 200 and rendered without uncaught page errors. The locked install, 120 tests, 18 local browser checks and cloud export passed. The live browser suite uses hardware protocol doubles, not physical bands; its USB case was corrected to explicitly select USB because hosted pages correctly default to Bluetooth.
+Public `/`, `/phone` and `/phone/` returned HTTP 200 and rendered without uncaught page errors. The locked install, 120 tests, 18 local browser checks and cloud export passed. All 18 live browser checks passed after the USB case was corrected to explicitly select USB because hosted pages correctly default to Bluetooth. The live suite uses hardware protocol doubles, not physical bands. See the [full validation record](VALIDATION-2026-10-25.md).
 
 **Separate failing integration:** the GitHub `Vercel` status targets **`serafina1/deco3500`**, a different project. It remained failed after the root build configuration change. The authenticated account can access only `andhikanayakaaws-projects`; requests for `serafina1` were denied. The remaining build-log root cause is unknown. See [issue #2](https://github.com/terserahdehh/DesignProposal---DECO3500/issues/2). The owner of that project must inspect its logs and repair its configuration or deliberately disconnect the obsolete integration. A working canonical site does not mean that unrelated GitHub status was fixed. No failure status has been overwritten or suppressed.
 

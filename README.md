@@ -22,7 +22,7 @@
 
 ## Assessment submission
 
-**[Download Team 16's submission PDF](16_DesignPrototypeDocs.pdf)** · [Assignment checklist and provisional assessment](docs/SUBMISSION-CHECKLIST.md) · [Current tasks](https://github.com/terserahdehh/DesignProposal---DECO3500/issues)
+**[Download Team 16's submission PDF](16_DesignPrototypeDocs.pdf)** · [Assignment checklist and provisional assessment](docs/SUBMISSION-CHECKLIST.md) · [Validation record](docs/VALIDATION-2026-10-25.md) · [Current tasks](https://github.com/terserahdehh/DesignProposal---DECO3500/issues)
 
 The single PDF contains the team cover, approximately 1,000-word **[Design Process Overview](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Design-Process-Overview)** and **[Ethical Considerations](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Ethical-Considerations)**. Other assessed evidence is indexed below and in the wiki: research, requirements, interim concepts, source code, evaluation, meeting/progress records and promotional materials. [Prototype scope and social/mobile framework](docs/PROTOTYPE-SCOPE.md) explains actual functionality and simulation. [Exhibit pitch](docs/EXHIBIT-PITCH.md) provides a visitor demonstration script.
 
