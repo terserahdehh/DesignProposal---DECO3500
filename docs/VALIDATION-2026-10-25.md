@@ -18,12 +18,12 @@ Browser hardware cases use protocol doubles. No band was flashed, no saved hardw
 
 ## PDF and artefacts
 
-- Root export: [16_DesignPrototypeDocs.pdf](../16_DesignPrototypeDocs.pdf), **15 A4 pages**, **451,228 bytes**.
-- SHA-256: `944c224f06439f5e31ed8d3c472d71add250fc6493f88c3669700851421842d3`.
+- Root export: [16_DesignPrototypeDocs.pdf](../16_DesignPrototypeDocs.pdf), **20 A4 pages**, **9,006,668 bytes**.
+- SHA-256: `753250327bb042c4b066297cae5ddaaf96543f9cd0cc74cb808b64e631e42335`.
 - Page 1 contains all four supplied full names and exact student numbers, Team 16 / PulseBand and the repository URL. Local cover edits removing the assignment label and date were preserved.
-- All textual blocks from both checked-in wiki sources were found in PDF text extraction. Risk tables and both figures are included. All eight reference entries appear in one alphabetised References section on page 15, after both main sections. The standalone wiki pages retain their individual lists.
-- All exported text spans are black and within page margins. **26 PDF link annotations** were detected. The revised PDF text and metadata contain zero em dashes and zero semicolons.
-- Pages were rendered and visually inspected, including the cover, figures, references and ethics tables. Heading/table placement was adjusted after inspection.
+- All textual blocks from both checked-in wiki sources were found in PDF text extraction. Both labelled risk/stakeholder tables and all five figures are included. All 12 reference entries appear in one alphabetised References section beginning on page 19, after both main sections. The standalone wiki pages retain their individual lists. The main design narrative is approximately 1,005 words, excluding navigation, captions and references.
+- All exported text spans are black and within page margins. **29 PDF link annotations** were detected. The revised PDF text and metadata contain zero em dashes and zero semicolons.
+- Pages were rendered and visually inspected, including the framework screenshot, both exhibition photographs, references and ethics tables. Table backgrounds are white, text and borders are black, and 12 vertical table-line segments were detected. Table captions and repeated headers preserve readability.
 - The public GitHub raw PDF was downloaded and matched the local export byte for byte.
 - The promotional website, prototype, companion, both GitHub video pages, poster page and brochure page each returned HTTP 200.
 - The retained poster measured approximately 419.9 × 594.0 mm, one portrait page; brochure has two pages.

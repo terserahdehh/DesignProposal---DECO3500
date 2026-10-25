@@ -124,7 +124,7 @@ def export_markdown(source, style, width):
                 image_path = local_image(pictures[0].get("src"))
                 with PILImage.open(image_path) as picture:
                     iw, ih = picture.size
-                scale = min(width / iw, 290 / ih)
+                scale = min(width / iw, 380 / ih)
                 figure = Image(str(image_path), width=iw * scale, height=ih * scale)
                 figure.hAlign = "CENTER"
                 nxt = element.getnext()
@@ -140,6 +140,13 @@ def export_markdown(source, style, width):
             if previous is not None and previous.xpath(".//img"):
                 continue
             text = element.text_content()
+            table_caption = re.match(r"Table (\d+)\.\s*(.*)", text)
+            if table_caption:
+                label = f'<b>Table {table_caption[1]}</b><br/><i>{escape(table_caption[2])}</i>'
+                caption = Paragraph(label, style["caption"])
+                caption.keepWithNext = True
+                story.append(caption)
+                continue
             key = "reference" if references else "navigation" if text.startswith(("PulseBand ·", "Explore the outcome:", "Try the prototype:")) else "body"
             story.append(Paragraph(inline(element), style[key]))
         elif tag in ("ul", "ol"):
@@ -155,9 +162,10 @@ def export_markdown(source, style, width):
             table = Table(rows, colWidths=[width * x for x in fractions], repeatRows=1, hAlign="LEFT")
             table.setStyle(TableStyle([
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LINEABOVE", (0, 0), (-1, 0), 0.7, colors.black),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.7, colors.black),
-                ("LINEBELOW", (0, -1), (-1, -1), 0.7, colors.black),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.black),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.9, colors.black),
                 ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                 ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]))
