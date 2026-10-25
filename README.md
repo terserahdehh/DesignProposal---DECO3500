@@ -26,7 +26,7 @@
 
 The single PDF contains the team cover, approximately 1,000-word **[Design Process Overview](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Design-Process-Overview)** and **[Ethical Considerations](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Ethical-Considerations)**. Other assessed evidence is indexed below and in the wiki: research, requirements, interim concepts, source code, evaluation, meeting/progress records and promotional materials. [Prototype scope and social/mobile framework](docs/PROTOTYPE-SCOPE.md) explains actual functionality and simulation. [Exhibit pitch](docs/EXHIBIT-PITCH.md) provides a visitor demonstration script.
 
-The team reports that `16_DesignPrototypeDocs.pdf` has been submitted on its behalf. [PDF sources and regeneration](docs/submission/README.md) are versioned with the export.
+The team submission export is `16_DesignPrototypeDocs.pdf`. [PDF sources and regeneration](docs/submission/README.md) are versioned with the export.
 
 ## Your people. Always within reach.
 

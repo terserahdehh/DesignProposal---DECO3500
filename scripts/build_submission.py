@@ -180,11 +180,11 @@ def main():
     style = styles()
     doc = SimpleDocTemplate(str(OUT), pagesize=A4, rightMargin=72, leftMargin=72,
                             topMargin=72, bottomMargin=72,
-                            title="PulseBand: Design Prototype Documentation — Team 16",
-                            author="Team 16 — PulseBand",
+                            title="PulseBand: Design Prototype Documentation (Team 16)",
+                            author="Team 16, PulseBand",
                             subject="DECO3500 Design Process Overview and Ethical Considerations")
     story = [Spacer(1, 90), Paragraph("PulseBand: Design Prototype Documentation", style["title"]),
-             Paragraph("Team 16 — PulseBand", style["cover"]), Spacer(1, 24)]
+             Paragraph("Team 16: PulseBand", style["cover"]), Spacer(1, 24)]
     for member in CONFIG["members"]:
         story.append(Paragraph(escape(member["name"] + " (" + member["student_number"] + ")"), style["cover"]))
     story.extend([Spacer(1, 24), Paragraph(escape(CONFIG["institution"]), style["cover"]),

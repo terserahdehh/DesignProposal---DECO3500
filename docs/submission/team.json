@@ -1,15 +1,27 @@
 {
   "team_number": "16",
   "team_name": "PulseBand",
-  "course": "DECO3500 — Social & Mobile Computing",
+  "course": "DECO3500: Social & Mobile Computing",
   "institution": "The University of Queensland",
   "document_date": "25 October 2026",
   "repository": "https://github.com/terserahdehh/DesignProposal---DECO3500",
   "filename": "16_DesignPrototypeDocs.pdf",
   "members": [
-    {"name": "Andhika Nayaka Arya Wibowo", "student_number": "s49847008"},
-    {"name": "Serafina Nala Putri Setiawan", "student_number": "s4980036"},
-    {"name": "Nguyen Minh Thao Vy", "student_number": "s47289006"},
-    {"name": "Syifa Ananda Widyati", "student_number": "s49800272"}
+    {
+      "name": "Andhika Nayaka Arya Wibowo",
+      "student_number": "s49847008"
+    },
+    {
+      "name": "Serafina Nala Putri Setiawan",
+      "student_number": "s4980036"
+    },
+    {
+      "name": "Nguyen Minh Thao Vy",
+      "student_number": "s47289006"
+    },
+    {
+      "name": "Syifa Ananda Widyati",
+      "student_number": "s49800272"
+    }
   ]
 }

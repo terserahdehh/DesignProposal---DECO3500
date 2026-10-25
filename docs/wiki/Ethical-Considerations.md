@@ -12,9 +12,9 @@ Loke and Matthews' (2020) *Scaffolding of Interaction Design Education Towards E
 
 ## 1. Current situation
 
-Friends at loud, crowded events coordinate using gestures, group chats, landmarks and agreed checkpoints. Interviewees describe delayed messages, difficulty hearing calls and uneven coordination responsibilities. Separation may be intentional and enjoyable; constant physical togetherness is not the design goal. The wearable is optional support for occasional communication and reconnection.
+Friends at loud, crowded events coordinate using gestures, group chats, landmarks and agreed checkpoints. Interviewees describe delayed messages, difficulty hearing calls and uneven coordination responsibilities. Separation may be intentional and enjoyable. Constant physical togetherness is not the design goal. The wearable is optional support for occasional communication and reconnection.
 
-The implemented hardware is one fixed two-band pair. Phone location is required for guidance; the boards have no GPS, magnetometer or vibration motor. Location can be inaccurate or suspended by the browser. Messages need powered bands within ESP-NOW range. These conditions affect what a wearer may reasonably trust.
+The implemented hardware is one fixed two-band pair. Phone location is required for guidance. The boards have no GPS, magnetometer or vibration motor. Location can be inaccurate or suspended by the browser. Messages need powered bands within ESP-NOW range. These conditions affect what a wearer may reasonably trust.
 
 ## 2. Who could be affected
 
@@ -55,7 +55,7 @@ Our prototype should let visitors distinguish demonstration effects from real co
 
 **Our responsibility as a team** is to explain what works, make errors understandable and give users control over sharing and cancellation. We also need to describe our tests accurately and protect participant information. The technical limits matter because people may act on what the screen tells them.
 
-**Shared responsibilities** include agreeing a checkpoint and interpreting a message together. Users should be able to decide whether to move, wait or decline. Venue staff retain their existing roles; a peer alert does not delegate a response to them. We should design clear expectations rather than shift every burden to a main group organiser.
+**Shared responsibilities** include agreeing a checkpoint and interpreting a message together. Users should be able to decide whether to move, wait or decline. Venue staff retain their existing roles. A peer alert does not delegate a response to them. We should design clear expectations rather than shift every burden to a main group organiser.
 
 **Some conditions are outside our control**, including phone location accuracy, radio interference, the browser pausing updates and barriers at the venue. The interface needs to make problems visible so friends can fall back on a meeting point or another way to contact each other.
 
@@ -71,29 +71,29 @@ The web prototype also remembers the selected identity and message lists in the 
 
 The source interviews include consent to recording and university-project use, but that does not by itself establish consent to identifiable public publication. This wiki uses participant codes and summarises findings. The [combined interview PDF](https://github.com/terserahdehh/DesignProposal---DECO3500/blob/main/research-findings/interview-transcripts.pdf) and retained evaluation document contain participant details, so publication raises privacy and consent considerations beyond participation in the study. Recordings, precise test locations, private credentials and raw Bluetooth/session logs should not be included in public artefacts.
 
-For further evaluation, explain purpose, procedures, recording, data access and withdrawal before obtaining consent. Use a safe setting, comfortable sound levels and voluntary sharing. A participant should be able to decline location or SOS tasks without penalty. Store raw notes within the agreed access scope; publish de-identified results and clearly state limitations. Avoid portraying one person's sensory preferences as representative of a whole community.
+For further evaluation, explain purpose, procedures, recording, data access and withdrawal before obtaining consent. Use a safe setting, comfortable sound levels and voluntary sharing. A participant should be able to decline location or SOS tasks without penalty. Store raw notes within the agreed access scope. Publish de-identified results and clearly state limitations. Avoid portraying one person's sensory preferences as representative of a whole community.
 
 ## Priorities and evidence needed
 
-The following priorities are our design judgement, not measured risk probabilities. Existing controls reduce particular risks; no row implies the remaining risk has been eliminated.
+The following priorities are our design judgement, not measured risk probabilities. Existing controls reduce particular risks. No row implies the remaining risk has been eliminated.
 
 | Risk and priority | Current response | Remaining responsibility and acceptance evidence |
 | --- | --- | --- |
-| Coercive tracking — high | Sharing starts and stops on the companion; fixes expire. | Per-request refusal on the watch is absent. Team must evaluate whether a wearer can decline without social pressure; do not describe browser permission as ongoing social consent. |
-| Misleading guidance — high | Stale/uncertain fixes suppress the arrow; north reference is explained. | Team must test whether unfamiliar users recognise uncertainty and avoid treating an arrow as a safe route. Retain agreed meeting points as a fallback. |
-| False confidence in SOS — high | Three confirmations, cancellation before sending, peer-only destination. | Test confirmation effort and recipient interpretation under safe simulated stress. Do not advertise an emergency response guarantee. |
-| Public research exposure — high | Wiki summaries use participant labels. | Team must review identifiable source documents and faces/voices in videos, and verify permission for public publication. Recording consent alone is insufficient; public Git history may retain earlier versions. |
-| Exclusion through colour or touch — medium | Names and text supplement colour; menu remains short. | Observe low-vision, colour-vision and motor-access needs with consenting participants. Physical vibration is absent, so do not claim an evaluated haptic or universally accessible experience. |
-| Notification burden and ambiguous intentions — medium | Editable messages and sender identity provide context. | Test mutually understood messages and the ability to ignore or decline; dedicated replies remain future work. |
-| Comfort, cost and waste — medium | Prototype can be reused for demonstrations. | Team must evaluate fit, safe handling, cleaning, maintenance and eventual disposal before wider deployment. No lifecycle or affordability study has been completed. |
+| Coercive tracking (high) | Sharing starts and stops on the companion. Fixes expire. | Per-request refusal on the watch is absent. Team must evaluate whether a wearer can decline without social pressure. Do not describe browser permission as ongoing social consent. |
+| Misleading guidance (high) | Stale/uncertain fixes suppress the arrow. North reference is explained. | Team must test whether unfamiliar users recognise uncertainty and avoid treating an arrow as a safe route. Retain agreed meeting points as a fallback. |
+| False confidence in SOS (high) | Three confirmations, cancellation before sending, peer-only destination. | Test confirmation effort and recipient interpretation under safe simulated stress. Do not advertise an emergency response guarantee. |
+| Public research exposure (high) | Wiki summaries use participant labels. | Team must review identifiable source documents and faces/voices in videos, and verify permission for public publication. Recording consent alone is insufficient. Public Git history may retain earlier versions. |
+| Exclusion through colour or touch (medium) | Names and text supplement colour. Menu remains short. | Observe low-vision, colour-vision and motor-access needs with consenting participants. Physical vibration is absent, so do not claim an evaluated haptic or universally accessible experience. |
+| Notification burden and ambiguous intentions (medium) | Editable messages and sender identity provide context. | Test mutually understood messages and the ability to ignore or decline. Dedicated replies remain future work. |
+| Comfort, cost and waste (medium) | Prototype can be reused for demonstrations. | Team must evaluate fit, safe handling, cleaning, maintenance and eventual disposal before wider deployment. No lifecycle or affordability study has been completed. |
 
 ## Evaluation and accountability
 
 Before a further study, explain which functions are real and which are simulated, who can access recordings, whether any material will be public, and how a participant can stop or withdraw within the agreed study procedure. Separate participation, recording and public-release choices. Do not require location sharing to participate in interface testing. A stationary, supervised task can assess interpretation without asking people to follow uncertain cues through a crowd.
 
-For each task, record the consent conditions, observed misunderstanding, control used and unresolved consequence. Useful acceptance evidence would show a wearer stopping sharing, both friends interpreting an acknowledgement correctly, and a visitor identifying SOS as a peer alert. These are proposed criteria for the next evaluation, not outcomes already demonstrated with participants. All four team members share responsibility for reviewing public evidence and explaining limits at the exhibit; coding ownership does not transfer that obligation to one person.
+For each task, record the consent conditions, observed misunderstanding, control used and unresolved consequence. Useful acceptance evidence would show a wearer stopping sharing, both friends interpreting an acknowledgement correctly, and a visitor identifying SOS as a peer alert. These are proposed criteria for the next evaluation, not outcomes already demonstrated with participants. All four team members share responsibility for reviewing public evidence and explaining limits at the exhibit. Coding ownership does not transfer that obligation to one person.
 
-This assessment is a living design document. The move from simulation to phone-derived location made privacy, uncertainty and device acknowledgement more concrete. Adding larger groups, account identity, venue integration or stronger location technology would require another stakeholder and data-flow review. Loke and Matthews (2020) provide the broader educational argument for making values explicit throughout design; our particular controls and priorities are our application to PulseBand.
+This assessment is a living design document. The move from simulation to phone-derived location made privacy, uncertainty and device acknowledgement more concrete. Adding larger groups, account identity, venue integration or stronger location technology would require another stakeholder and data-flow review. Loke and Matthews (2020) provide the broader educational argument for making values explicit throughout design. Our particular controls and priorities are our application to PulseBand.
 
 ## References
 
