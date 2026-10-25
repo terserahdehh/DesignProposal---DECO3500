@@ -355,6 +355,8 @@ test('USB status exposes both wearers and their live incoming popup', async ({ p
     { owner: 'syifa', connected: true, peerConnected: true },
   ] } }));
   await page.goto('/phone/');
+  // Hosted HTTPS defaults to Bluetooth; select the transport this case exercises.
+  await page.getByTestId('transport-usb').click();
   await expect(page.getByTestId('incoming-band-popup')).toContainText('USB custom message');
   await page.getByTestId('hide-incoming').click();
   await expect(page.getByText('USB connected', { exact: true })).toHaveCount(2);
