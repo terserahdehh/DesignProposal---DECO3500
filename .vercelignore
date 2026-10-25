@@ -1,0 +1,17 @@
+node_modules/
+**/node_modules/**
+.expo/
+**/.expo/**
+dist/
+**/dist/**
+**/.env*
+**/.vercel/**
+**/test-results/**
+**/playwright-report/**
+**/__pycache__/**
+hardware/
+research-findings/
+promotional-materials/
+docs/
+scripts/
+*.pdf

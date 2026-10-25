@@ -10,7 +10,23 @@ The current prototype uses a code-built circular PulseBand body with a small rec
 
 ## Vercel deployment and access for friends
 
-The shared production website is https://pulseband-steel.vercel.app; physical-band setup is https://pulseband-steel.vercel.app/phone. The existing Vercel project is **`pulseband`**, under **`andhikanayakaaws-projects`**. Its [project dashboard](https://vercel.com/andhikanayakaaws-projects/pulseband) requires an authorized Vercel account. Deploy the **`prototype/`** directory, not the repository root: `npm run build` exports the website to `dist`, using `prototype/vercel.json` for the `/phone` routes.
+The shared production website is https://pulseband-steel.vercel.app; physical-band setup is https://pulseband-steel.vercel.app/phone. The existing Vercel project is **`pulseband`**, under **`andhikanayakaaws-projects`**. Its [project dashboard](https://vercel.com/andhikanayakaaws-projects/pulseband) requires an authorized Vercel account. For the existing local Vercel link, deploy from **`prototype/`**: `npm run build` exports to `dist`, using `prototype/vercel.json`. Repository-root imports now also have an explicit root `vercel.json` that installs/builds inside `prototype/` and publishes `prototype/dist`; both configurations preserve `/phone` routing. Do not mix a `prototype/` project root with the repository-root output path.
+
+
+### Verified redeployment on 25 October 2026
+
+The existing `pulseband` project was redeployed as **Ready** from commit `9247a2131eb83f71f24c0ac31f49255f4afd7a0f`:
+
+- Production: https://pulseband-steel.vercel.app/
+- Companion: https://pulseband-steel.vercel.app/phone
+- Immutable deployment: https://pulseband-awergri1b-andhikanayakaaws-projects.vercel.app
+- Dashboard: https://vercel.com/andhikanayakaaws-projects/pulseband/HomHGBTDGQEob91A7n7SDEga4SfM
+
+Public `/`, `/phone` and `/phone/` returned HTTP 200 and rendered without uncaught page errors. The locked install, 120 tests, 18 local browser checks and cloud export passed. The live browser suite uses hardware protocol doubles, not physical bands; its USB case was corrected to explicitly select USB because hosted pages correctly default to Bluetooth.
+
+**Separate failing integration:** the GitHub `Vercel` status targets **`serafina1/deco3500`**, a different project. It remained failed after the root build configuration change. The authenticated account can access only `andhikanayakaaws-projects`; requests for `serafina1` were denied. The remaining build-log root cause is unknown. See [issue #2](https://github.com/terserahdehh/DesignProposal---DECO3500/issues/2). The owner of that project must inspect its logs and repair its configuration or deliberately disconnect the obsolete integration. A working canonical site does not mean that unrelated GitHub status was fixed. No failure status has been overwritten or suppressed.
+
+The existing `pulseband` project still has no Git repository link, so pushes do not automatically deploy it. Continue using the explicit authorized CLI deployment above unless the owner connects the intended repository. The supplied source configuration supports both root and nested-app imports, but does not grant access to another team's project.
 
 ### First give each friend permission
 
