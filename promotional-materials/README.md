@@ -29,6 +29,12 @@ The thumbnails open the original MP4 files. The website also provides video play
 
 [Open the original brochure PDF](documents/pulseband-brochure.pdf) · 2 pages.
 
+## Exhibition photographs
+
+The team supplied photographs of the exhibit setup and group at the demonstration table. **[View both photographs and their provenance](exhibition/README.md)**. They are also included in the submission PDF and wiki process overview.
+
+[![PulseBand exhibition setup](exhibition/exhibit-setup.png)](exhibition/README.md)
+
 ## Files and provenance
 
 | Folder | Contents |
@@ -37,9 +43,10 @@ The thumbnails open the original MP4 files. The website also provides video play
 | [`documents/`](documents/) | Supplied A2 poster and brochure PDFs |
 | [`previews/`](previews/) | JPEG renders of every PDF page and still frames from the two videos |
 | [`images/`](images/) | README banner and the PulseBand pair visual used on the promotional website |
+| [`exhibition/`](exhibition/README.md) | Team-supplied exhibit setup and group photographs, with provenance |
 
 The four supplied originals were added on **19 October 2026**, with consistent filenames and their file contents preserved. The pair visual is from the team's [promotional website](https://deco-3500-website-promo.vercel.app/assets/pulseband-pair-transparent.png). The banner is a repository-native SVG. Previews are for browsing; use the PDFs for full-resolution reading or printing.
 
 ## Prototype context
 
-The promotional material presents the intended wearable experience. The current physical prototype connects the fixed **Nayaka–Syifa** pair. Messages travel directly between the bands; physical direction uses approximate coordinates shared from two separate phones. The web simulator's proximity and direction are simulated. The current physical SOS requires three separate OK confirmations and alerts the paired friend. See the [hardware guide](../hardware/README.md) and [wiki usage guide](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Prototype-and-Usage-Guide) for the implemented behaviour.
+The promotional material presents the intended wearable experience. The current physical prototype connects the fixed **Nayaka–Syifa** pair. Messages travel directly between the bands; physical direction uses approximate coordinates shared from two separate phones. The web simulator's proximity and direction are simulated. The current physical SOS requires three separate OK confirmations and alerts the paired friend. See the [hardware guide](../hardware/README.md) and [development guide](../docs/DEVELOPMENT.md) for the implemented behaviour.

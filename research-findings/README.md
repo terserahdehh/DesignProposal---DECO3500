@@ -38,6 +38,8 @@ Of 27 respondents, 13 (48.1%) selected locating or reuniting with friends as the
 
 ## Supporting research and evaluations
 
+**[Literature and framework synthesis](literature-and-frameworks.md)** connects festival re-planning, Bluetooth-based mobility research and the social-wearables framework to PulseBand, with APA references and explicit limits.
+
 | Area | Contents |
 | --- | --- |
 | [Amy](amy/) | Scenario evaluation |

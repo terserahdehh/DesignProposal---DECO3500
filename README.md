@@ -105,6 +105,12 @@ Open either preview to read the original PDF. Both brochure pages are shown belo
 
 All original videos, PDFs and previews are organised in **[promotional-materials/](promotional-materials/README.md)**.
 
+## Exhibition photographs and design framework
+
+**[View the exhibit setup and group photographs](promotional-materials/exhibition/README.md)** · [Social-wearables framework and application](docs/PROTOTYPE-SCOPE.md#applying-the-social-wearables-framework) · [Literature and framework synthesis](research-findings/literature-and-frameworks.md)
+
+The supplied exhibition photographs show the poster, brochures, promotional website, companion interface and physical boards. The submission PDF and wiki include both photographs and the team's social-wearables framework image, with citations and attribution.
+
 ## Explore the prototype
 
 | Experience | Open it |

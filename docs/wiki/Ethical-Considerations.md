@@ -18,6 +18,8 @@ The implemented hardware is one fixed two-band pair. Phone location is required 
 
 ## 2. Who could be affected
 
+*Table 1. Stakeholders, benefits and potential harms.*
+
 | Stakeholder | Benefit or interest | Potential burden or harm |
 | --- | --- | --- |
 | Wearer sending messages or location | Fast communication and reconnection | Loss of privacy, setup burden, misleading delivery or guidance |
@@ -38,6 +40,8 @@ Our prototype should let visitors distinguish demonstration effects from real co
 ## 4. Risks and design responses
 
 **Location privacy.** Finding friends should not turn into an expectation that everyone stays trackable. Users can start and stop sharing through the companion page. The watch does not yet let someone accept or refuse each finding request.
+
+Dagan et al. (2019) ask who activates a wearable and who perceives its output. Applied here, intentional permission to start sharing does not authorise every later finding request, and a wrist display may still be visible to bystanders. Lindström and Pettersson (2010) also identify control over shared group information as a design concern. Our future group controls should therefore support selective sharing and refusal, rather than assume friendship establishes permanent permission.
 
 **Misleading direction.** An arrow can look trustworthy even when the phone location is inaccurate. The band hides direction when the location is too old or uncertain, but it cannot show a safe route around barriers or through a crowd.
 
@@ -67,6 +71,8 @@ Stopping sharing ends new updates and asks the band to clear its location. If th
 
 The web prototype also remembers the selected identity and message lists in the browser. These names are demonstration labels, not secure accounts. A finished product would need stronger account and group privacy controls.
 
+Larsen et al. (2013) inferred festival movement and grouping from time-stamped Bluetooth observations. This demonstrates the analytical value of repeated location-related records, while also motivating our decision to avoid retaining a location history. Their study's historical consent arrangements do not establish permission for our own collection or publication. Our ethics assessment concerns what PulseBand users choose to share and what our team publishes.
+
 ## Research and public documentation
 
 The source interviews include consent to recording and university-project use, but that does not by itself establish consent to identifiable public publication. This wiki uses participant codes and summarises findings. The [combined interview PDF](https://github.com/terserahdehh/DesignProposal---DECO3500/blob/main/research-findings/interview-transcripts.pdf) and retained evaluation document contain participant details, so publication raises privacy and consent considerations beyond participation in the study. Recordings, precise test locations, private credentials and raw Bluetooth/session logs should not be included in public artefacts.
@@ -76,6 +82,8 @@ For further evaluation, explain purpose, procedures, recording, data access and 
 ## Priorities and evidence needed
 
 The following priorities are our design judgement, not measured risk probabilities. Existing controls reduce particular risks. No row implies the remaining risk has been eliminated.
+
+*Table 2. Ethical priorities, current controls and remaining responsibilities.*
 
 | Risk and priority | Current response | Remaining responsibility and acceptance evidence |
 | --- | --- | --- |
@@ -97,6 +105,12 @@ This assessment is a living design document. The move from simulation to phone-d
 
 ## References
 
+Dagan, E., Márquez Segura, E., Altarriba Bertran, F., Flores, M., Mitchell, R., & Isbister, K. (2019). Design framework for social wearables. In *Proceedings of the 2019 on Designing Interactive Systems Conference* (pp. 1001–1015). Association for Computing Machinery. https://doi.org/10.1145/3322276.3322291
+
 Ethics for Designers. (n.d.). *Ethical disclaimer*. https://www.ethicsfordesigners.com/ethical-disclaimer
+
+Larsen, J. E., Sapiezynski, P., Stopczynski, A., Mørup, M., & Theodorsen, R. (2013). *Crowds, Bluetooth, and rock-n-roll: Understanding music festival participant behavior* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.1306.3133
+
+Lindström, S., & Pettersson, M. (2010). Supporting ad-hoc re-planning and shareability at large-scale events. In *Proceedings of the 16th ACM International Conference on Supporting Group Work* (pp. 245–252). Association for Computing Machinery. https://doi.org/10.1145/1880071.1880113
 
 Loke, L., & Matthews, B. (2020). Scaffolding of interaction design education towards ethical design thinking. In G. Melles (Ed.), *Design thinking in higher education: Interdisciplinary encounters* (pp. 165–181). Springer. https://doi.org/10.1007/978-981-15-5780-4_8

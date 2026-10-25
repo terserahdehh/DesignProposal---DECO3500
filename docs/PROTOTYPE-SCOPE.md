@@ -30,7 +30,21 @@ Each wearer supplies a location from their own device. Two bands receiving one l
 | Automated tests | Interface state, protocol, acknowledgement, errors and WebRTC checks | Browser hardware doubles do not validate live radios, location accuracy or people |
 | Physical usability session | Five participants' qualitative feedback on Find Friend | No reported task completion times, controlled accuracy benchmark or festival field validation |
 
-## Applying a framework
+## Applying the social-wearables framework
+
+Dagan et al. (2019) consider input, intentionality, output perception and the social effects of wearables. The team's [supplied framework image](assets/social-wearables-framework.png) is included with attribution in the [process overview](wiki/Design-Process-Overview.md). We apply its questions as follows:
+
+| Framework question | Current PulseBand behaviour | Design implication |
+| --- | --- | --- |
+| Who triggers the input? | A wearer deliberately selects and confirms a prepared message. Each wearer starts their own phone-location sharing. | Name the acting wearer and recipient, and make cancellation available. |
+| How intentional is activation? | Sending is deliberate. Location updates continue automatically after sharing starts, until stopped or interrupted. | A one-time permission gesture should not be mistaken for consent to every future finding request. |
+| Who perceives the output? | The receiving wearer sees the message and sender. A bystander may also see a lit wrist display. | Consider legibility alongside privacy and avoid treating the display as a confidential channel. |
+| Who can stop or decline? | Sharing can be stopped through the companion, but the watch does not ask for permission for each Find Friend request. | Per-request refusal remains a design priority. |
+| What social value is added? | Brief messages and approximate guidance aim to support awareness, coordination and reconnection. | Evaluate mutual understanding and freedom to separate, rather than count device receipt as successful coordination. |
+
+The framework focuses on co-located social interaction. Applying it to temporary separation within a shared festival venue is our interpretation, not evidence of equivalent results. [The literature synthesis](../research-findings/literature-and-frameworks.md) also connects this account to re-planning, shareability and Bluetooth-based festival observations.
+
+## Applying the groupware perspective
 
 Ellis et al. (1991) identify communication, collaboration and coordination as central groupware concerns. We use that perspective to interpret our own design:
 
@@ -45,6 +59,8 @@ Ellis et al. (1991) identify communication, collaboration and coordination as ce
 
 This explicit application is a present-day analytical explanation, not evidence that this exact table was produced in Week 8 or Week 9.
 
-## Reference
+## References
+
+Dagan, E., Márquez Segura, E., Altarriba Bertran, F., Flores, M., Mitchell, R., & Isbister, K. (2019). Design framework for social wearables. In *Proceedings of the 2019 on Designing Interactive Systems Conference* (pp. 1001–1015). Association for Computing Machinery. https://doi.org/10.1145/3322276.3322291
 
 Ellis, C. A., Gibbs, S. J., & Rein, G. (1991). Groupware: Some issues and experiences. *Communications of the ACM, 34*(1), 39–58. https://doi.org/10.1145/99977.99987
