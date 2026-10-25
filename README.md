@@ -106,7 +106,7 @@ All original videos, PDFs and previews are organised in **[promotional-materials
 | Physical-band companion | [Prepare messages and connect a band](https://pulseband-steel.vercel.app/phone) |
 | Physical demo setup | [Quick start](hardware/QUICK_START.md) · [Syifa's laptop setup](hardware/CONNECT_SYIFA.md) · [Hardware guide](hardware/README.md) |
 
-**Current prototype scope.** The physical build connects two configured bands, **Nayaka and Syifa**, for direct peer messages. Direction is approximate guidance from two independently shared phone locations; the bands have no GPS, wrist compass or vibration motor. The original web simulator uses simulated proximity and direction. Physical SOS uses three separate OK confirmations and alerts the paired friend. The [usage guide](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Prototype-and-Usage-Guide) explains each demonstration mode.
+**Current prototype scope.** The physical build connects two configured bands, **Nayaka and Syifa**, for direct peer messages. Direction is approximate guidance from two independently shared phone locations; the bands have no GPS, wrist compass or vibration motor. The original web simulator uses simulated proximity and direction. Physical SOS uses three separate OK confirmations and alerts the paired friend.
 
 ### Run locally
 
@@ -140,7 +140,6 @@ People described poor reception, calls drowned out by music and difficulty typin
 | [Design process](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Design-Process-Overview) | How the concept evolved from research to wearable |
 | [Research and insights](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Research-and-Insights) | Combined interview transcripts, findings and source evidence |
 | [Experience requirements](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Experience-Requirements) | Research translated into design priorities |
-| [Prototype and usage](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Prototype-and-Usage-Guide) | Web and physical demonstrations, setup and scope |
 | [Evaluation and iteration](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Evaluation-and-Iteration) | User feedback, refinements and engineering checks |
 | [Promotional materials](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Promotional-Materials) | Website, both videos, poster and brochure |
 | [Ethical considerations](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Ethical-Considerations) | Location, consent, accessibility and peer alerts |
