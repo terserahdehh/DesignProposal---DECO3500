@@ -18,10 +18,10 @@ Browser hardware cases use protocol doubles. No band was flashed, no saved hardw
 
 ## PDF and artefacts
 
-- Root export: [16_DesignPrototypeDocs.pdf](../16_DesignPrototypeDocs.pdf), **15 A4 pages**, **451,575 bytes**.
-- SHA-256: `3ec43ce70d677d75b477608af7c4a1b083429e7662029ca0f28a117dc00d95fb`.
-- Page 1 contains all four supplied full names and exact student numbers, Team 16 / PulseBand and the repository URL.
-- All textual blocks from both checked-in wiki sources were found in PDF text extraction. References, risk tables and both figures are included.
+- Root export: [16_DesignPrototypeDocs.pdf](../16_DesignPrototypeDocs.pdf), **15 A4 pages**, **451,228 bytes**.
+- SHA-256: `944c224f06439f5e31ed8d3c472d71add250fc6493f88c3669700851421842d3`.
+- Page 1 contains all four supplied full names and exact student numbers, Team 16 / PulseBand and the repository URL. Local cover edits removing the assignment label and date were preserved.
+- All textual blocks from both checked-in wiki sources were found in PDF text extraction. Risk tables and both figures are included. All eight reference entries appear in one alphabetised References section on page 15, after both main sections. The standalone wiki pages retain their individual lists.
 - All exported text spans are black and within page margins. **26 PDF link annotations** were detected. The revised PDF text and metadata contain zero em dashes and zero semicolons.
 - Pages were rendered and visually inspected, including the cover, figures, references and ethics tables. Heading/table placement was adjusted after inspection.
 - The public GitHub raw PDF was downloaded and matched the local export byte for byte.

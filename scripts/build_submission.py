@@ -189,15 +189,30 @@ def main():
         story.append(Paragraph(escape(member["name"] + " (" + member["student_number"] + ")"), style["cover"]))
     story.extend([Spacer(1, 24), Paragraph(escape(CONFIG["institution"]), style["cover"]),
                   Paragraph(escape(CONFIG["course"]), style["cover"]),
-                  Paragraph("Assignment 3: Design Project", style["cover"]),
-                  Paragraph(escape(CONFIG["document_date"]), style["cover"]), Spacer(1, 24),
+                  Spacer(1, 24),
                   Paragraph("<b>GitHub repository</b>", style["cover"]),
                   Paragraph(f'<a href="{CONFIG["repository"]}" color="black">{CONFIG["repository"]}</a>', style["cover"]),
                   PageBreak()])
+    reference_entries = {}
     for index, filename in enumerate(["Design-Process-Overview.md", "Ethical-Considerations.md"]):
         if index:
             story.append(PageBreak())
-        story.extend(export_markdown((ROOT / "docs/wiki" / filename).read_text(), style, doc.width))
+        source = (ROOT / "docs/wiki" / filename).read_text()
+        body, separator, references = source.partition("\n## References\n")
+        if not separator:
+            raise ValueError(f"Missing reference section in {filename}")
+        for entry in re.split(r"\n\s*\n", references.strip()):
+            entry = entry.strip()
+            if entry:
+                key = html.fromstring(markdown.markdown(entry)).text_content()
+                key = " ".join(key.split()).casefold()
+                reference_entries.setdefault(key, entry)
+        story.extend(export_markdown(body, style, doc.width))
+    story.append(PageBreak())
+    combined_references = "# References\n\n" + "\n\n".join(
+        reference_entries[key] for key in sorted(reference_entries)
+    )
+    story.extend(export_markdown(combined_references, style, doc.width))
     doc.build(story, onFirstPage=page_header, onLaterPages=page_header)
     print(OUT)
 
