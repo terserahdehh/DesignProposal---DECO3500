@@ -61,7 +61,7 @@ Typing and message customisation happen before the event on the [companion page]
 
 **[Read the usability-testing transcript (PDF)](research-findings/team/usability-testing-transcript.pdf)** · 3 pages
 
-Five participants tested friend-finding and proximity interactions, as summarised on the [promotional website](https://deco-3500-website-promo.vercel.app/#testing). Feedback highlighted three priorities:
+Five participants tested friend-finding and proximity using two physical ESP32 bands, as summarised on the [promotional website](https://deco-3500-website-promo.vercel.app/#testing). Feedback highlighted three priorities:
 
 | What participants noticed | Design direction |
 | --- | --- |

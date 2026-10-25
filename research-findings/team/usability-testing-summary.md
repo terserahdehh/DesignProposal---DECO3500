@@ -1,26 +1,28 @@
-# Friend-finding usability testing — supplied evidence
+# Physical Find Friend testing
 
-[Research index](../README.md) · [Testing transcript (PDF)](usability-testing-transcript.pdf) · [Testing video](../../promotional-materials/videos/usability-testing.mp4) · [Project evaluation](https://github.com/terserahdehh/DesignProposal---DECO3500/wiki/Evaluation-and-Iteration)
+## What we tested
 
-## Evidence and scope
+Five participants tried Find Friend using two physical ESP32 bands. They gave feedback on the direction arrow, proximity lights and four dots on the display. This was a later session, separate from the early web prototype evaluations.
 
-The supplied [Usability Testing Transcript](usability-testing-transcript.pdf) contains **three pages of post-test group feedback**, with speakers labelled **Participants 1–5**. The team's [promotional website](https://deco-3500-website-promo.vercel.app/#testing) also reports five participants testing PulseBand's friend-finding and proximity interactions. The [usability-testing video](../../promotional-materials/videos/usability-testing.mp4) and [A2 poster](../../promotional-materials/documents/pulseband-a2-poster.pdf) are archived with the final promotional materials. The transcript is preserved unchanged. This summary was updated on **19 October 2026**; that is the documentation date, not an inferred session date.
+The three-page transcript records the discussion after testing. The participant labels in this group discussion belong to this session.
 
-This is a later evidence set than [Usability Test 01](../andhika-nayaka/usability-test-01.md), which documents early narrated concept feedback. The five participant labels appear in the supplied transcript; the count is not inferred from the edited video.
+## Feedback
 
-## Findings in the transcript and final materials
+Participants liked having an arrow to help find a friend. However, the arrow could behave inconsistently when a band was moved sideways.
 
-| Observation | Refinement direction reported by the team |
-| --- | --- |
-| Directional guidance was considered useful for reconnection. Sideways movement could produce an inconsistent direction cue. | Improve the consistency of directional feedback. |
-| Changes in light brightness were too subtle to notice. | Make proximity feedback more noticeable; faster blinking as users get closer was suggested. |
-| Participants did not understand the four proximity dots and considered them redundant with the lights. | Remove redundant indicators and simplify the display. |
-| Participants saw a use for the concept when friends become separated. | Keep the interaction focused on Find Friend, quick signals and peer SOS. |
+The brightness changes were too subtle for participants to tell reliably whether they were getting closer. One suggested making the lights blink faster as the distance decreased.
 
-These are qualitative observations and design directions reported in the supplied materials. They do not establish that every refinement is implemented in the current web build or flashed physical firmware. Use the [hardware documentation](../../hardware/README.md) to establish actual physical behaviour.
+The four proximity dots were not clear. Some participants had not noticed them, while others thought they were decorative. They questioned whether the dots were needed when the lights already showed proximity.
 
-## Interpretation and follow-up
+## What we learnt
 
-The findings reinforce the value of lightweight reconnection while showing that visual feedback must be easy to interpret. A direction cue needs consistent behaviour, and a proximity cue must be noticeable without adding redundant information.
+- Make the arrow easier to follow during movement.
+- Make changes in proximity more noticeable.
+- Simplify the display rather than show several unclear indicators.
 
-The transcript documents the post-test feedback discussion, including the interviewer's prompts and participant responses. It does not include the full task protocol, testing date, participant profiles, prototype version, independent task records or quantitative results. Add those records when available. Do not infer task-completion rates, an outdoor two-phone GPS check, reliable positioning in a festival crowd, or testing of every messaging/SOS feature from this evidence.
+These are findings and suggested improvements from testing. They do not mean every suggestion has been implemented. The session does not establish reliable positioning in a festival crowd.
+
+## Supporting material
+
+- [Post-test transcript](usability-testing-transcript.pdf)
+- [Testing video](../../promotional-materials/videos/usability-testing.mp4)

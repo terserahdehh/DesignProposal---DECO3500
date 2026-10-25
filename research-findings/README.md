@@ -28,7 +28,7 @@ This PDF replaces the earlier separate interview documents, transcript and analy
 
 **[Read the Usability Testing Transcript PDF](team/usability-testing-transcript.pdf)** · 3 pages
 
-Post-test feedback from Participants 1–5 covers directional guidance, proximity lights and the four proximity dots. See the [testing summary](team/usability-testing-summary.md) and [usability-testing video](../promotional-materials/videos/usability-testing.mp4) alongside the transcript.
+Five participants tried two physical ESP32 bands. Their post-test feedback covers the arrow, proximity lights and four dots on the display. See the [testing summary](team/usability-testing-summary.md) and [usability-testing video](../promotional-materials/videos/usability-testing.mp4) alongside the transcript.
 
 ## Survey results
 
