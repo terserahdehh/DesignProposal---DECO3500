@@ -32,6 +32,6 @@ Browser hardware cases use protocol doubles. No band was flashed, no saved hardw
 
 The GitHub `Vercel` failure belongs to `serafina1/deco3500`, not the verified `pulseband` project. Root-build configuration did not clear that separate failure. This authenticated Vercel account cannot access `serafina1`, so its remaining error is unknown and [issue #2](https://github.com/terserahdehh/DesignProposal---DECO3500/issues/2) remains open. No fabricated success status was posted.
 
-The GitHub Project query was rejected for missing `read:project` / `project` scope. Current tasks were created as repository issues, with Project linking left explicitly open. Historical meeting evidence, evaluation dates, public-release consent and final Blackboard upload still require team action as listed in [the submission checklist](SUBMISSION-CHECKLIST.md).
+The GitHub Project query was rejected for missing `read:project` / `project` scope. Current tasks were created as repository issues, with Project linking left explicitly open. Historical meeting evidence, evaluation dates and public-release consent remain subject to team review. The team subsequently reported that the PDF had been submitted; the submission receipt was not independently inspected.
 
 Serafina's student number remains `s4980036`, exactly as supplied. Its length differs from the other three numbers; the team should verify it before uploading. Everyone's Week 9 / Week 12 attendance is team-confirmed, not independently audited here.
