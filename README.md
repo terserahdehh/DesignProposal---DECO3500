@@ -120,7 +120,7 @@ Open the local URL printed by Expo. For tests, transport details and redeploying
 
 ## Research interviews
 
-**[Read all interview transcripts (PDF)](research-findings/interview-transcripts.pdf)** · 4 interviews · 23 pages
+**[Read all interview transcripts (PDF)](research-findings/interview-transcripts.pdf)** · 5 interviews · 26 pages
 
 Our interviews are collected in one document, covering communication, friend separation, phone use and accessibility at live music events. Explore the [research findings](research-findings/README.md) for the synthesis and evaluations.
 

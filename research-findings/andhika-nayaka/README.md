@@ -8,7 +8,7 @@ at concerts and music festivals.
 
 | Activity | Document | Purpose |
 | --- | --- | --- |
-| Interview evidence | [Combined Interview Transcripts PDF](../interview-transcripts.pdf) | Nayaka's interview is Interview 4, beginning on PDF page 18; the document contains all four team interviews |
+| Interview evidence | [Combined Interview Transcripts PDF](../interview-transcripts.pdf) | Nayaka's interview is Interview 4, beginning on PDF page 18; the document contains all five team interviews |
 | Usability testing | [Usability test 01](usability-test-01.md) | Cleaned transcript and findings from an early concept evaluation |
 
 ## Headline insight
