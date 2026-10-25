@@ -42,6 +42,7 @@ Of 27 respondents, 13 (48.1%) selected locating or reuniting with friends as the
 | --- | --- |
 | [Amy](amy/) | Scenario evaluation |
 | [Serafina](serafina/usability-test-01.md) | Early concept user testing with two participants |
+| [Syifa](syifa/usability-test-01.md) | Early concept walkthrough with one participant |
 | [Andhika Nayaka](andhika-nayaka/) | Research synthesis, netnography, secondary research and first-round usability testing |
 | [Team](team/) | Survey results, shared research tasks, usability-testing transcript and summary |
 
